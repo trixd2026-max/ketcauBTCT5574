@@ -7,6 +7,8 @@ export type BeamInput = {
   MNegative: number; MPositive: number; Q: number; concrete: string; steel: string; stirrupSteel: string;
   AsTop: number; AsBottom: number; stirrupLegs: number; stirrupDia: number; stirrupSpacing: number;
   nBarsTop?: number; nBarsBottom?: number; barDiaTop?: number; barDiaBottom?: number;
+  /** Layout string e.g. "5d18", "3d22+2d16" */
+  barsTop?: string; barsBottom?: string;
   MserShortNeg?: number; MserShortPos?: number;
   MserLongNeg?: number; MserLongPos?: number;
   L?: number;
@@ -228,6 +230,12 @@ export const createDefaultBeam = (id: string = crypto.randomUUID()): BeamInput =
   stirrupSteel: 'CB240-T',
   AsTop: 942,
   AsBottom: 942,
+  barsTop: '3d20',
+  barsBottom: '3d20',
+  nBarsTop: 3,
+  nBarsBottom: 3,
+  barDiaTop: 20,
+  barDiaBottom: 20,
   stirrupLegs: 2,
   stirrupDia: 10,
   stirrupSpacing: 150,
