@@ -2,6 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import * as XLSX from 'xlsx';
 import { BeamInput, BeamResult, calcBeam, createDefaultBeam } from './engine/beam';
 import { concretes, steels } from './engine/materials';
+import ColumnPanel from './modules/ColumnPanel';
+
+type ModuleId = 'beam' | 'column' | 'slab' | 'foundation';
 
 const STORAGE_KEY = 'ketcau-btct-5574-beams-v1';
 const numberKeys = new Set<string>([
@@ -54,6 +57,7 @@ function download(name: string, content: BlobPart, type: string) {
 }
 
 export default function App() {
+  const [module, setModule] = useState<ModuleId>('beam');
   const [beams, setBeams] = useState<BeamInput[]>(getSaved);
   const [selectedId, setSelectedId] = useState(beams[0]?.id ?? '');
   const fileRef = useRef<HTMLInputElement>(null);
@@ -180,18 +184,21 @@ export default function App() {
     <div className="app">
       <aside>
         <div className="brand">BTCT <span>5574</span></div>
-        <p className="muted">DẦM V1.2 · UỐN · CẮT · NỨT · VÕNG</p>
-        <button className="nav active">▣&nbsp; Dầm BTCT</button>
-        <button className="nav disabled">▣&nbsp; Cột BTCT</button>
-        <button className="nav disabled">▣&nbsp; Sàn BTCT</button>
-        <button className="nav disabled">▣&nbsp; Móng BTCT</button>
+        <p className="muted">V1.3 · DẦM · CỘT · (SÀN/MÓNG)</p>
+        <button type="button" className={`nav ${module === 'beam' ? 'active' : ''}`} onClick={() => setModule('beam')}>▣&nbsp; Dầm BTCT</button>
+        <button type="button" className={`nav ${module === 'column' ? 'active' : ''}`} onClick={() => setModule('column')}>▣&nbsp; Cột BTCT</button>
+        <button type="button" className="nav disabled" title="Sắp tới">▣&nbsp; Sàn BTCT</button>
+        <button type="button" className="nav disabled" title="Sắp tới">▣&nbsp; Móng BTCT</button>
         <div className="sidefoot">
-          V1.2 thực dụng<br />
-          Nứt + võng ước lượng<br />
-          Chưa khóa chuẩn đầy đủ
+          V1.3 · Dầm + Cột<br />
+          N–M gần đúng<br />
+          Chưa khóa chuẩn TCVN
         </div>
       </aside>
       <main>
+        {module === 'column' && <ColumnPanel />}
+        {module === 'beam' && (
+        <>
         <header>
           <div>
             <h1>Dầm BTCT V1.2</h1>
@@ -284,7 +291,7 @@ export default function App() {
               <DecimalField label="L nhịp (m)" value={selected.L ?? 0} step="0.01" onChange={(v) => update('L', v)} />
               <DecimalField label="Mser− ngắn (kNm)" value={selected.MserShortNeg ?? 0} step="0.01" onChange={(v) => update('MserShortNeg', v)} />
               <DecimalField label="Mser+ ngắn (kNm)" value={selected.MserShortPos ?? 0} step="0.01" onChange={(v) => update('MserShortPos', v)} />
-              <DecimalField label="Mser− dài (kNm)" value={selected.MserLongNeg ?? 0} step="0.01" onChange={(v) => update('MserLongNeg', v)} />
+              <DecimalField label="Mser− dài (kNm)" value={selected.MserLongNeg ?? 0} step="0.01" onChange={(v) => update('MserLongPos', v)} />
               <DecimalField label="Mser+ dài (kNm)" value={selected.MserLongPos ?? 0} step="0.01" onChange={(v) => update('MserLongPos', v)} />
               <Field label="Độ ẩm">
                 <select value={selected.humidity ?? 'mid'} onChange={(e) => update('humidity', e.target.value)}>
@@ -352,6 +359,8 @@ export default function App() {
             </table>
           </div>
         </section>
+        </>
+        )}
       </main>
     </div>
   );
