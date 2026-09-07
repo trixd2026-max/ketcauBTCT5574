@@ -1,85 +1,258 @@
 /**
- * Single footing (Móng đơn) V1 — aligned with MongDon.xlsm Design_MongDon patterns.
+ * Móng đơn BTCT V1.0 — aligned with MongDon.xlsm (ThuyetMinh)
+ * Soil: p_avg / p_max / p_min vs Rtc
+ * RC: cantilever flexure Asx/Asy, punching Nct ≤ Nkt
+ * Units: m for geometry, kN, kNm, kN/m²; steel mm²/m
+ * Not TCVN-locked until golden cases fully verified.
  */
 import { getConcrete, getSteel } from './materials';
 
 export type FoundationInput = {
-  id: string; name: string; B: number; L: number; h: number;
-  colB: number; colH: number; N: number; Mx: number; My: number; Rtc: number;
-  concrete: string; steel: string; cover: number; barsX?: string; barsY?: string;
-  gammaConcrete?: number; gammaSoil?: number; embedDepth?: number;
+  id: string;
+  name: string;
+  Lx: number;
+  Ly: number;
+  Hf: number;
+  Df: number;
+  colB: number;
+  colH: number;
+  ex?: number;
+  ey?: number;
+  N: number;
+  Mx: number;
+  My: number;
+  Qx?: number;
+  Qy?: number;
+  Ntc?: number;
+  Mxtc?: number;
+  Mytc?: number;
+  concrete: string;
+  steel: string;
+  a: number;
+  Rtc: number;
+  gammaSoil?: number;
+  htn?: number;
+  pg?: number;
+  barsX?: string;
+  barsY?: string;
 };
 
 export type Check = { pass: boolean; message: string };
 
 export type FoundationResult = {
-  area: number; eX: number; eY: number; sigmaMax: number; sigmaMin: number;
-  soilCheck: Check; eccentricityCheck: Check;
-  AsXReq: number; AsYReq: number; AsXProv: number; AsYProv: number;
-  flexureX: Check; flexureY: Check; punching: Check; shear: Check;
-  pass: boolean; warnings: string[];
+  Af: number;
+  Wx: number;
+  Wy: number;
+  Nbase: number;
+  MxBase: number;
+  MyBase: number;
+  pAvg: number;
+  pMax: number;
+  pMin: number;
+  eccX: number;
+  eccY: number;
+  soilAvg: Check;
+  soilMax: Check;
+  soilMin: Check;
+  punching: Check & { Nct: number; Nkt: number; um: number };
+  AsXReq: number;
+  AsYReq: number;
+  AsXMin: number;
+  AsYMin: number;
+  AsXProv: number;
+  AsYProv: number;
+  flexureX: Check;
+  flexureY: Check;
+  pass: boolean;
+  warnings: string[];
 };
 
 const safe = (v: number) => (Number.isFinite(v) ? v : 0);
 const check = (pass: boolean, message: string): Check => ({ pass, message });
 
-function parseBarsPerM(spec: string): number {
+export function parseFoundationBars(spec: string, widthMm = 1000): { As: number; dia: number; ok: boolean } {
   const s = (spec || '').trim().toLowerCase().replace(/ø|ф/g, 'd');
-  const m = s.match(/d\s*([0-9]+(?:\.[0-9]+)?)\s*[a@]\s*([0-9]+)/i);
+  if (!s) return { As: 0, dia: 0, ok: false };
+  let m = s.match(/d\s*([0-9]+(?:\.[0-9]+)?)\s*[a@]\s*([0-9]+(?:\.[0-9]+)?)/i);
   if (m) {
-    const dia = Number(m[1]); const sp = Number(m[2]);
-    return ((Math.PI * dia * dia) / 4) * (1000 / sp);
+    const dia = Number(m[1]);
+    const spacing = Number(m[2]);
+    if (dia && spacing) {
+      const As = ((Math.PI * dia * dia) / 4) * (widthMm / spacing);
+      return { As: Math.round(As * 10) / 10, dia, ok: true };
+    }
   }
-  return 0;
+  m = s.match(/([0-9]+)\s*d\s*([0-9]+(?:\.[0-9]+)?)/i);
+  if (m) {
+    const n = Number(m[1]);
+    const dia = Number(m[2]);
+    const As = (n * Math.PI * dia * dia) / 4;
+    return { As: Math.round(As * 10) / 10, dia, ok: true };
+  }
+  return { As: 0, dia: 0, ok: false };
 }
 
 export function calcFoundation(input: FoundationInput): FoundationResult {
   const c = getConcrete(input.concrete);
   const s = getSteel(input.steel);
-  const B = input.B; const L = input.L; const area = B * L;
-  const N = Math.abs(input.N); const Mx = Math.abs(input.Mx); const My = Math.abs(input.My);
-  const h_m = input.h / 1000; const gammaC = input.gammaConcrete ?? 25;
-  const W = area * h_m * gammaC; const Ntot = N + W;
-  const eX = Ntot > 0 ? My / Ntot : 0; const eY = Ntot > 0 ? Mx / Ntot : 0;
-  const Wx = (B * L * L) / 6; const Wy = (L * B * B) / 6;
-  const sigmaMax = area > 0 ? Ntot / area + (Wx > 0 ? Mx / Wx : 0) + (Wy > 0 ? My / Wy : 0) : 0;
-  const sigmaMin = area > 0 ? Ntot / area - (Wx > 0 ? Mx / Wx : 0) - (Wy > 0 ? My / Wy : 0) : 0;
-  const eLimitX = L / 6; const eLimitY = B / 6;
-  const eccentricityCheck = check(eX <= eLimitX && eY <= eLimitY && sigmaMin >= 0,
-    eX <= eLimitX && eY <= eLimitY && sigmaMin >= 0 ? `Lệch tâm eX=${eX.toFixed(3)}, eY=${eY.toFixed(3)} m đạt; σmin≥0` : `Lệch tâm lớn hoặc σmin=${sigmaMin.toFixed(1)} < 0`);
-  const soilCheck = check(sigmaMax <= input.Rtc && sigmaMin >= 0,
-    sigmaMax <= input.Rtc && sigmaMin >= 0 ? `σmax=${sigmaMax.toFixed(1)} ≤ Rtc=${input.Rtc} kPa` : `σmax=${sigmaMax.toFixed(1)} > Rtc hoặc σmin < 0`);
-  const overhangX = (L - input.colH / 1000) / 2; const overhangY = (B - input.colB / 1000) / 2;
-  const q = Math.max(sigmaMax, 0);
-  const Mx_cant = q * (overhangX ** 2) / 2; const My_cant = q * (overhangY ** 2) / 2;
-  const a = input.cover + 8; const ho = input.h - a;
-  const asReq = (M: number) => {
-    if (ho <= 0) return 0;
-    const alphaM = (Math.abs(M) * 1e6) / (1000 * ho * ho * c.Rb);
-    if (alphaM >= 0.5) return Infinity;
-    const xi = 1 - Math.sqrt(Math.max(0, 1 - 2 * alphaM));
-    return (c.Rb * 1000 * xi * ho) / s.Rs;
+  const Lx = Math.max(input.Lx, 0.1);
+  const Ly = Math.max(input.Ly, 0.1);
+  const Hf = Math.max(input.Hf, 0.1);
+  const Df = Math.max(input.Df ?? 0, 0);
+  const colB = Math.max(input.colB, 0.05);
+  const colH = Math.max(input.colH, 0.05);
+  const gamma = input.gammaSoil ?? 18;
+  const htn = input.htn ?? 0;
+  const pg = input.pg ?? 0;
+  const a_m = (input.a || 50) / 1000;
+  const h0 = Math.max(Hf - a_m, 0.05);
+
+  const Af = Lx * Ly;
+  const Wx = (1 / 6) * Lx * Ly * Ly;
+  const Wy = (1 / 6) * Ly * Lx * Lx;
+
+  const Nfill = gamma * htn * Af;
+  const Nuls = Math.abs(input.N) + Nfill;
+  const Qx = input.Qx ?? 0;
+  const Qy = input.Qy ?? 0;
+  const ey = input.ey ?? 0;
+  const ex = input.ex ?? 0;
+  const MxBase = input.Mx - Qy * Hf - Math.abs(input.N) * ey;
+  const MyBase = input.My + Qx * Hf + Math.abs(input.N) * ex;
+
+  const Ntc = input.Ntc != null && input.Ntc > 0 ? input.Ntc + Nfill : Nuls / 1.2;
+  const Mxtc = input.Mxtc != null ? input.Mxtc : MxBase / 1.2;
+  const Mytc = input.Mytc != null ? input.Mytc : MyBase / 1.2;
+
+  const surcharge = gamma * Df + pg;
+  const pAvg = Ntc / Af + surcharge;
+  const pMax = Ntc / Af + Math.abs(Mxtc) / Wx + Math.abs(Mytc) / Wy + surcharge;
+  const pMin = Ntc / Af - Math.abs(Mxtc) / Wx - Math.abs(Mytc) / Wy + surcharge;
+
+  const Rtc = Math.max(input.Rtc, 1);
+  const soilAvg = check(pAvg <= Rtc + 1e-6, pAvg <= Rtc ? `p_tb=${pAvg.toFixed(1)} ≤ Rtc=${Rtc}` : `p_tb=${pAvg.toFixed(1)} > Rtc=${Rtc}`);
+  const soilMax = check(pMax <= 1.2 * Rtc + 1e-6, pMax <= 1.2 * Rtc ? `p_max=${pMax.toFixed(1)} ≤ 1.2Rtc=${(1.2 * Rtc).toFixed(1)}` : `p_max=${pMax.toFixed(1)} > 1.2Rtc`);
+  const soilMin = check(pMin >= -1e-3, pMin >= 0 ? `p_min=${pMin.toFixed(1)} ≥ 0 (không nhổ)` : `p_min=${pMin.toFixed(1)} < 0 — có nhổ nền`);
+
+  const eccX = Ntc > 1e-6 ? Math.abs(Mytc) / Ntc : 0;
+  const eccY = Ntc > 1e-6 ? Math.abs(Mxtc) / Ntc : 0;
+
+  const cx1 = Lx / 2 - colB / 2 + ex;
+  const cy1 = Ly / 2 - colH / 2 + ey;
+  const cx2 = Lx - cx1 - colB;
+  const cy2 = Ly - cy1 - colH;
+  const um =
+    (2 * colB +
+      2 * colH +
+      2 * (Math.min(Math.max(cx1, 0), h0) + colB + Math.min(Math.max(cx2, 0), h0)) +
+      2 * (Math.min(Math.max(cy1, 0), h0) + colH + Math.min(Math.max(cy2, 0), h0))) /
+    2;
+  const sideX = Math.min(Math.max(cx1, 0), h0) + colB + Math.min(Math.max(cx2, 0), h0);
+  const sideY = Math.min(Math.max(cy1, 0), h0) + colH + Math.min(Math.max(cy2, 0), h0);
+  const Act = Math.max(Af - sideX * sideY, 0);
+  const pUls = Nuls / Af + Math.abs(MxBase) / Wx + Math.abs(MyBase) / Wy + surcharge;
+  const Nct = pUls * Act;
+  const Nkt = 0.75 * c.Rbt * um * h0 * 1000;
+  const punching = {
+    pass: Nct <= Nkt + 1e-3,
+    message: Nct <= Nkt ? `Chọc thủng Nct=${Nct.toFixed(1)} ≤ Nkt=${Nkt.toFixed(1)} kN` : `Chọc thủng Nct=${Nct.toFixed(1)} > Nkt=${Nkt.toFixed(1)}`,
+    Nct: safe(Nct),
+    Nkt: safe(Nkt),
+    um: safe(um),
   };
-  const AsXReq = asReq(Mx_cant); const AsYReq = asReq(My_cant);
-  const AsXProv = parseBarsPerM(input.barsX ?? ''); const AsYProv = parseBarsPerM(input.barsY ?? '');
-  const flexureX = check(AsXProv >= AsXReq && Number.isFinite(AsXReq), AsXProv >= AsXReq ? `Uốn X: As ${AsXProv.toFixed(0)} ≥ ${AsXReq.toFixed(0)}` : `Uốn X thiếu thép`);
-  const flexureY = check(AsYProv >= AsYReq && Number.isFinite(AsYReq), AsYProv >= AsYReq ? `Uốn Y: As ${AsYProv.toFixed(0)} ≥ ${AsYReq.toFixed(0)}` : `Uốn Y thiếu thép`);
-  const d = ho; const u = 2 * (input.colB + input.colH + 2 * d);
-  const tau = u > 0 && d > 0 ? (N * 1000) / (u * d) : 0;
-  const tauRd = 0.5 * c.Rbt;
-  const punching = check(tau <= tauRd, tau <= tauRd ? `Chọc thủng τ=${tau.toFixed(3)} ≤ ${tauRd.toFixed(3)} MPa` : `Chọc thủng không đạt`);
-  const shear = check(true, 'Cắt 1 phương: kiểm tra sơ bộ V1');
-  const warnings = ['Móng V1: áp lực + uốn + chọc thủng gần đúng theo MongDon.xlsm — chưa khóa chuẩn'];
-  const pass = soilCheck.pass && eccentricityCheck.pass && flexureX.pass && flexureY.pass && punching.pass;
+
+  const ox = Math.max(cx1, cx2, 0.01);
+  const oy = Math.max(cy1, cy2, 0.01);
+  const My_cant = (pUls * ox * ox) / 2;
+  const Mx_cant = (pUls * oy * oy) / 2;
+  const M_for_AsX = Math.max(My_cant, Math.abs(MyBase) / Lx);
+  const M_for_AsY = Math.max(Mx_cant, Math.abs(MxBase) / Ly);
+
+  const AsXReq = Math.max((M_for_AsX * 1e6) / (0.9 * s.Rs * h0 * 1000), 0);
+  const AsYReq = Math.max((M_for_AsY * 1e6) / (0.9 * s.Rs * h0 * 1000), 0);
+  const AsMin = 0.001 * 1000 * h0 * 1000;
+  const AsXMin = AsMin;
+  const AsYMin = AsMin;
+
+  const px = parseFoundationBars(input.barsX ?? '', 1000);
+  const py = parseFoundationBars(input.barsY ?? '', 1000);
+  const AsXProv = px.ok ? px.As : 0;
+  const AsYProv = py.ok ? py.As : 0;
+
+  const needX = Math.max(AsXReq, AsXMin);
+  const needY = Math.max(AsYReq, AsYMin);
+  const flexureX = check(
+    AsXProv + 1e-6 >= needX,
+    AsXProv >= needX ? `Asx ${AsXProv.toFixed(0)} ≥ ${needX.toFixed(0)} mm²/m` : `Asx thiếu ${AsXProv.toFixed(0)} < ${needX.toFixed(0)}`
+  );
+  const flexureY = check(
+    AsYProv + 1e-6 >= needY,
+    AsYProv >= needY ? `Asy ${AsYProv.toFixed(0)} ≥ ${needY.toFixed(0)} mm²/m` : `Asy thiếu ${AsYProv.toFixed(0)} < ${needY.toFixed(0)}`
+  );
+
+  const warnings = [
+    'Móng V1.0: theo MongDon.xlsm (ThuyetMinh) — p_avg/max/min, chọc thủng, uốn console đơn giản',
+    'Chưa: hệ số A/B/D từ φ đất đầy đủ, lún chi tiết, trượt/lật — chưa khóa TCVN',
+  ];
+  if (eccX > Lx / 6 || eccY > Ly / 6) {
+    warnings.push(`Lệch tâm lớn: ex=${eccX.toFixed(3)}m, ey=${eccY.toFixed(3)}m (so với L/6)`);
+  }
+
+  const pass =
+    soilAvg.pass && soilMax.pass && soilMin.pass && punching.pass && flexureX.pass && flexureY.pass;
+
   return {
-    area, eX: safe(eX), eY: safe(eY), sigmaMax: safe(sigmaMax), sigmaMin: safe(sigmaMin),
-    soilCheck, eccentricityCheck, AsXReq: safe(AsXReq), AsYReq: safe(AsYReq), AsXProv, AsYProv,
-    flexureX, flexureY, punching, shear, pass, warnings,
+    Af: safe(Af),
+    Wx: safe(Wx),
+    Wy: safe(Wy),
+    Nbase: safe(Nuls),
+    MxBase: safe(MxBase),
+    MyBase: safe(MyBase),
+    pAvg: safe(pAvg),
+    pMax: safe(pMax),
+    pMin: safe(pMin),
+    eccX: safe(eccX),
+    eccY: safe(eccY),
+    soilAvg,
+    soilMax,
+    soilMin,
+    punching,
+    AsXReq: safe(AsXReq),
+    AsYReq: safe(AsYReq),
+    AsXMin: safe(AsXMin),
+    AsYMin: safe(AsYMin),
+    AsXProv,
+    AsYProv,
+    flexureX,
+    flexureY,
+    pass,
+    warnings,
   };
 }
 
 export const createDefaultFoundation = (id: string = crypto.randomUUID()): FoundationInput => ({
-  id, name: 'Móng đơn mới', B: 2.5, L: 2.5, h: 500, colB: 300, colH: 600,
-  N: 800, Mx: 40, My: 30, Rtc: 200, concrete: 'B25', steel: 'CB400-V', cover: 40,
-  barsX: 'd16a150', barsY: 'd16a150',
+  id,
+  name: 'Móng đơn M1',
+  Lx: 2.0,
+  Ly: 2.0,
+  Hf: 0.5,
+  Df: 1.5,
+  colB: 0.4,
+  colH: 0.4,
+  ex: 0,
+  ey: 0,
+  N: 800,
+  Mx: 80,
+  My: 60,
+  Qx: 0,
+  Qy: 0,
+  concrete: 'B25',
+  steel: 'CB400-V',
+  a: 50,
+  Rtc: 200,
+  gammaSoil: 18,
+  htn: 0.3,
+  pg: 0,
+  barsX: 'd12a150',
+  barsY: 'd12a150',
 });
