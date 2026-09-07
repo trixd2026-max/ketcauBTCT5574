@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { BeamInput, BeamResult, calcBeam, createDefaultBeam } from './engine/beam';
 import { concretes, steels } from './engine/materials';
 import ColumnPanel from './modules/ColumnPanel';
+import SlabPanel from './modules/SlabPanel';
 
 type ModuleId = 'beam' | 'column' | 'slab' | 'foundation';
 
@@ -16,7 +17,6 @@ const numberKeys = new Set<string>([
 const fmt = (v: number, d = 1) =>
   Number.isFinite(v) ? v.toLocaleString('vi-VN', { maximumFractionDigits: d, minimumFractionDigits: 0 }) : '—';
 
-/** Parse bar layout like "5d18", "3d22+2d16", "3Ø20;2Ø16" → As, n, maxDia */
 function parseBars(spec: string): { As: number; n: number; dia: number; ok: boolean } {
   const s = spec.trim().toLowerCase().replace(/ø|ф/g, 'd').replace(/,/g, '.');
   if (!s) return { As: 0, n: 0, dia: 0, ok: false };
@@ -62,7 +62,6 @@ export default function App() {
   const [selectedId, setSelectedId] = useState(beams[0]?.id ?? '');
   const fileRef = useRef<HTMLInputElement>(null);
   const selectedRaw = beams.find((b) => b.id === selectedId) ?? beams[0];
-  /** Đồng bộ As từ chuỗi thép trước khi tính */
   const syncAs = (beam: BeamInput): BeamInput => {
     const top = parseBars(beam.barsTop ?? '');
     const bot = parseBars(beam.barsBottom ?? '');
@@ -183,19 +182,20 @@ export default function App() {
     <div className="app">
       <aside>
         <div className="brand">BTCT <span>5574</span></div>
-        <p className="muted">V1.3 · DẦM · CỘT · (SÀN/MÓNG)</p>
+        <p className="muted">V1.3 · DẦM · CỘT · SÀN</p>
         <button type="button" className={`nav ${module === 'beam' ? 'active' : ''}`} onClick={() => setModule('beam')}>▣&nbsp; Dầm BTCT</button>
         <button type="button" className={`nav ${module === 'column' ? 'active' : ''}`} onClick={() => setModule('column')}>▣&nbsp; Cột BTCT</button>
-        <button type="button" className="nav disabled" title="Sắp tới">▣&nbsp; Sàn BTCT</button>
+        <button type="button" className={`nav ${module === 'slab' ? 'active' : ''}`} onClick={() => setModule('slab')}>▣&nbsp; Sàn BTCT</button>
         <button type="button" className="nav disabled" title="Sắp tới">▣&nbsp; Móng BTCT</button>
         <div className="sidefoot">
-          V1.3 · Dầm + Cột<br />
-          N–M gần đúng<br />
+          V1.3 · Dầm + Cột + Sàn<br />
+          N–M / strip gần đúng<br />
           Chưa khóa chuẩn TCVN
         </div>
       </aside>
       <main>
         {module === 'column' && <ColumnPanel />}
+        {module === 'slab' && <SlabPanel />}
         {module === 'beam' && (
         <>
         <header>
