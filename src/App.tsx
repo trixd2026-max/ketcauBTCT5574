@@ -17,7 +17,7 @@ const fmt = (v: number, d = 1) =>
 function parseBars(spec: string): { As: number; n: number; dia: number; ok: boolean } {
   const s = spec.trim().toLowerCase().replace(/ø|ф/g, 'd').replace(/,/g, '.');
   if (!s) return { As: 0, n: 0, dia: 0, ok: false };
-  const re = /(\\d+)\\s*[x*×]?\\s*d\\s*(\\d+(?:\\.\\d+)?)/gi;
+  const re = /([0-9]+)[ x*×+;]*d([0-9]+(?:[.][0-9]+)?)/gi;
   let m: RegExpExecArray | null;
   let As = 0;
   let n = 0;
@@ -263,13 +263,13 @@ export default function App() {
               <DecimalField label="L nhịp (m)" value={selected.L ?? 0} step="0.01" onChange={(v) => update('L', v)} />
               <DecimalField label="Mser− ngắn (kNm)" value={selected.MserShortNeg ?? 0} step="0.01" onChange={(v) => update('MserShortNeg', v)} />
               <DecimalField label="Mser+ ngắn (kNm)" value={selected.MserShortPos ?? 0} step="0.01" onChange={(v) => update('MserShortPos', v)} />
-              <DecimalField label="Mser− dài (kNm)" value={selected.MserLongNeg ?? 0} step="0.01" onChange={(v) => update('MserLongNeg', v)} />
+              <DecimalField label="Mser− dài (kNm)" value={selected.MserLongNeg ?? 0} step="0.01" onChange={(v) => update('MserLongPos', v)} />
               <DecimalField label="Mser+ dài (kNm)" value={selected.MserLongPos ?? 0} step="0.01" onChange={(v) => update('MserLongPos', v)} />
               <Field label="Độ ẩm">
                 <select value={selected.humidity ?? 'mid'} onChange={(e) => update('humidity', e.target.value)}>
-                  <option value="high">&gt;75%</option>
+                  <option value="high">>75%</option>
                   <option value="mid">40–75%</option>
-                  <option value="low">&lt;40%</option>
+                  <option value="low"><40%</option>
                 </select>
               </Field>
               <Field label="Gối tựa">
