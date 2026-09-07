@@ -11,7 +11,29 @@ const numberKeys = new Set<string>([
   'MserShortNeg', 'MserShortPos', 'MserLongNeg', 'MserLongPos', 'L', 'limitRatio',
 ]);
 const fmt = (v: number, d = 1) =>
-  Number.isFinite(v) ? v.toLocaleString('vi-VN', { maximumFractionDigits: d, minimumFractionDigits: d }) : '—';
+  Number.isFinite(v) ? v.toLocaleString('vi-VN', { maximumFractionDigits: d, minimumFractionDigits: 0 }) : '—';
+
+/** Parse bar layout like "5d18", "3d22+2d16", "3Ø20;2Ø16" → As, n, maxDia */
+function parseBars(spec: string): { As: number; n: number; dia: number; ok: boolean } {
+  const s = spec.trim().toLowerCase().replace(/ø|ф/g, 'd').replace(/,/g, '.');
+  if (!s) return { As: 0, n: 0, dia: 0, ok: false };
+  const re = /(\\d+)\\s*[x*×]?\\s*d\\s*(\\d+(?:\\.\\d+)?)/gi;
+  let m: RegExpExecArray | null;
+  let As = 0;
+  let n = 0;
+  let maxDia = 0;
+  let found = false;
+  while ((m = re.exec(s)) !== null) {
+    found = true;
+    const count = Number(m[1]);
+    const dia = Number(m[2]);
+    if (!count || !dia) continue;
+    As += (count * (Math.PI * dia * dia)) / 4;
+    n += count;
+    if (dia > maxDia) maxDia = dia;
+  }
+  return { As: Math.round(As * 10) / 10, n, dia: maxDia, ok: found && As > 0 };
+}
 
 function getSaved(): BeamInput[] {
   try {
@@ -43,14 +65,32 @@ export default function App() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(beams));
   }, [beams]);
 
-  const update = (key: keyof BeamInput, value: string) =>
-    setBeams((items) =>
-      items.map((beam) =>
-        beam.id === selected.id
-          ? { ...beam, [key]: numberKeys.has(key as string) ? Number(value) || 0 : value }
-          : beam
-      )
-    );
+  const patchSelected = (patch: Partial<BeamInput>) =>
+    setBeams((items) => items.map((beam) => (beam.id === selected.id ? { ...beam, ...patch } : beam)));
+
+  const update = (key: keyof BeamInput, value: string) => {
+    if (numberKeys.has(key as string)) {
+      const n = value === '' || value === '-' ? 0 : Number(value);
+      patchSelected({ [key]: Number.isFinite(n) ? n : 0 } as Partial<BeamInput>);
+    } else {
+      patchSelected({ [key]: value } as Partial<BeamInput>);
+    }
+  };
+
+  const updateBars = (side: 'Top' | 'Bottom', spec: string) => {
+    const parsed = parseBars(spec);
+    if (side === 'Top') {
+      patchSelected({
+        barsTop: spec,
+        ...(parsed.ok ? { AsTop: parsed.As, nBarsTop: parsed.n, barDiaTop: parsed.dia } : {}),
+      });
+    } else {
+      patchSelected({
+        barsBottom: spec,
+        ...(parsed.ok ? { AsBottom: parsed.As, nBarsBottom: parsed.n, barDiaBottom: parsed.dia } : {}),
+      });
+    }
+  };
 
   const add = () => {
     const beam = createDefaultBeam();
@@ -76,10 +116,11 @@ export default function App() {
   const rows = results.map(({ beam, result }) => ({
     'Tên dầm': beam.name,
     'b×h': `${beam.b}×${beam.h}`,
-    'M-/M+': `${beam.MNegative}/${beam.MPositive}`,
+    'L (m)': beam.L ?? '',
+    'Thép trên': beam.barsTop || `${beam.AsTop} mm²`,
+    'Thép dưới': beam.barsBottom || `${beam.AsBottom} mm²`,
     'Uốn': result.negative.check.pass && result.positive.check.pass ? 'ĐẠT' : 'KĐ',
     'Cắt': result.shear.check.pass ? 'ĐẠT' : 'KĐ',
-    'Cấu tạo': result.detailing.pass ? 'ĐẠT' : 'KĐ',
     'Nứt': result.crack.pass ? 'ĐẠT' : 'KĐ',
     'Võng': (beam.L ?? 0) > 0 ? (result.deflection.pass ? 'ĐẠT' : 'KĐ') : '—',
     'Tổng': result.pass ? 'ĐẠT' : 'KĐ',
@@ -110,6 +151,9 @@ export default function App() {
     };
     reader.readAsText(file);
   };
+
+  const barsTop = selected.barsTop ?? (selected.nBarsTop && selected.barDiaTop ? `${selected.nBarsTop}d${selected.barDiaTop}` : '');
+  const barsBottom = selected.barsBottom ?? (selected.nBarsBottom && selected.barDiaBottom ? `${selected.nBarsBottom}d${selected.barDiaBottom}` : '');
 
   return (
     <div className="app">
@@ -144,8 +188,8 @@ export default function App() {
         </header>
 
         <section className="notice">
-          <b>V1.2:</b> thêm kiểm tra <b>nứt</b> (tiết diện quy đổi, Mcrc, acrc ngắn/dài hạn) và <b>võng ước lượng</b> (cần nhập L).
-          Moment SLS mặc định ≈ M<sub>ULS</sub>/1.4 (có thể sửa). Võng chưa tích phân độ cong theo sơ đồ moment đầy đủ.
+          <b>V1.2:</b> L nhịp hỗ trợ 2 chữ số thập phân (vd 4.25). Cốt thép nhập dạng <code>5d18</code> hoặc <code>3d22+2d16</code> → tự tính As.
+          Moment SLS mặc định ≈ M<sub>ULS</sub>/1.4 nếu để 0.
         </section>
 
         <div className="workspace">
@@ -190,27 +234,37 @@ export default function App() {
               </Field>
             </Group>
             <Group title="Tiết diện & ULS">
-              <NumberField label="b (mm)" value={selected.b} onChange={(v) => update('b', v)} />
-              <NumberField label="h (mm)" value={selected.h} onChange={(v) => update('h', v)} />
-              <NumberField label="M− ULS (kNm)" value={selected.MNegative} onChange={(v) => update('MNegative', v)} />
-              <NumberField label="M+ ULS (kNm)" value={selected.MPositive} onChange={(v) => update('MPositive', v)} />
-              <NumberField label="Q (kN)" value={selected.Q} onChange={(v) => update('Q', v)} />
+              <DecimalField label="b (mm)" value={selected.b} step="1" onChange={(v) => update('b', v)} />
+              <DecimalField label="h (mm)" value={selected.h} step="1" onChange={(v) => update('h', v)} />
+              <DecimalField label="M− ULS (kNm)" value={selected.MNegative} step="0.01" onChange={(v) => update('MNegative', v)} />
+              <DecimalField label="M+ ULS (kNm)" value={selected.MPositive} step="0.01" onChange={(v) => update('MPositive', v)} />
+              <DecimalField label="Q (kN)" value={selected.Q} step="0.01" onChange={(v) => update('Q', v)} />
             </Group>
             <Group title="Cốt thép">
-              <NumberField label="a trên" value={selected.aTop} onChange={(v) => update('aTop', v)} />
-              <NumberField label="As trên" value={selected.AsTop} onChange={(v) => update('AsTop', v)} />
-              <NumberField label="a dưới" value={selected.aBottom} onChange={(v) => update('aBottom', v)} />
-              <NumberField label="As dưới" value={selected.AsBottom} onChange={(v) => update('AsBottom', v)} />
-              <NumberField label="Nhánh đai" value={selected.stirrupLegs} onChange={(v) => update('stirrupLegs', v)} />
-              <NumberField label="Ø đai" value={selected.stirrupDia} onChange={(v) => update('stirrupDia', v)} />
-              <NumberField label="s đai" value={selected.stirrupSpacing} onChange={(v) => update('stirrupSpacing', v)} />
+              <DecimalField label="a trên (mm)" value={selected.aTop} step="1" onChange={(v) => update('aTop', v)} />
+              <Field label="Thép trên (vd 5d18)">
+                <input value={barsTop} placeholder="5d18 hoặc 3d22+2d16" onChange={(e) => updateBars('Top', e.target.value)} />
+              </Field>
+              <Field label="As trên (mm²)">
+                <input type="number" step="0.1" value={selected.AsTop} onChange={(e) => update('AsTop', e.target.value)} />
+              </Field>
+              <DecimalField label="a dưới (mm)" value={selected.aBottom} step="1" onChange={(v) => update('aBottom', v)} />
+              <Field label="Thép dưới (vd 4d20)">
+                <input value={barsBottom} placeholder="4d20 hoặc 3d22+2d16" onChange={(e) => updateBars('Bottom', e.target.value)} />
+              </Field>
+              <Field label="As dưới (mm²)">
+                <input type="number" step="0.1" value={selected.AsBottom} onChange={(e) => update('AsBottom', e.target.value)} />
+              </Field>
+              <DecimalField label="Nhánh đai" value={selected.stirrupLegs} step="1" onChange={(v) => update('stirrupLegs', v)} />
+              <DecimalField label="Ø đai (mm)" value={selected.stirrupDia} step="1" onChange={(v) => update('stirrupDia', v)} />
+              <DecimalField label="s đai (mm)" value={selected.stirrupSpacing} step="1" onChange={(v) => update('stirrupSpacing', v)} />
             </Group>
             <Group title="SLS · Nứt · Võng">
-              <NumberField label="L nhịp (m)" value={selected.L ?? 0} onChange={(v) => update('L', v)} />
-              <NumberField label="Mser− ngắn (kNm)" value={selected.MserShortNeg ?? 0} onChange={(v) => update('MserShortNeg', v)} />
-              <NumberField label="Mser+ ngắn (kNm)" value={selected.MserShortPos ?? 0} onChange={(v) => update('MserShortPos', v)} />
-              <NumberField label="Mser− dài (kNm)" value={selected.MserLongNeg ?? 0} onChange={(v) => update('MserLongNeg', v)} />
-              <NumberField label="Mser+ dài (kNm)" value={selected.MserLongPos ?? 0} onChange={(v) => update('MserLongPos', v)} />
+              <DecimalField label="L nhịp (m)" value={selected.L ?? 0} step="0.01" onChange={(v) => update('L', v)} />
+              <DecimalField label="Mser− ngắn (kNm)" value={selected.MserShortNeg ?? 0} step="0.01" onChange={(v) => update('MserShortNeg', v)} />
+              <DecimalField label="Mser+ ngắn (kNm)" value={selected.MserShortPos ?? 0} step="0.01" onChange={(v) => update('MserShortPos', v)} />
+              <DecimalField label="Mser− dài (kNm)" value={selected.MserLongNeg ?? 0} step="0.01" onChange={(v) => update('MserLongNeg', v)} />
+              <DecimalField label="Mser+ dài (kNm)" value={selected.MserLongPos ?? 0} step="0.01" onChange={(v) => update('MserLongPos', v)} />
               <Field label="Độ ẩm">
                 <select value={selected.humidity ?? 'mid'} onChange={(e) => update('humidity', e.target.value)}>
                   <option value="high">&gt;75%</option>
@@ -288,8 +342,12 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label>{label}{children}</label>;
 }
-function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (v: string) => void }) {
-  return <Field label={label}><input type="number" value={value} onChange={(e) => onChange(e.target.value)} /></Field>;
+function DecimalField({ label, value, step = '0.01', onChange }: { label: string; value: number; step?: string; onChange: (v: string) => void }) {
+  return (
+    <Field label={label}>
+      <input type="number" step={step} value={Number.isFinite(value) ? value : 0} onChange={(e) => onChange(e.target.value)} />
+    </Field>
+  );
 }
 function Status({ pass, large = false }: { pass: boolean; large?: boolean }) {
   return <span className={`status ${pass ? 'pass' : 'fail'} ${large ? 'large' : ''}`}>{pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}</span>;
