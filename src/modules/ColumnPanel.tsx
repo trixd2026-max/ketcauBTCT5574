@@ -1,58 +1,173 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { calcColumn, createDefaultColumn, parseColumnBars, type ColumnInput } from '../engine/column';
 import { concretes, steels } from '../engine/materials';
 
+const STORAGE = 'ketcau-btct-5574-columns-v1';
 const fmt = (v: number, d = 1) =>
   Number.isFinite(v) ? v.toLocaleString('vi-VN', { maximumFractionDigits: d, minimumFractionDigits: 0 }) : '—';
 
-export default function ColumnPanel() {
-  const [col, setCol] = useState<ColumnInput>(() => createDefaultColumn('c1'));
-  const parsed = parseColumnBars(col.bars ?? '');
-  const result = useMemo(
-    () =>
-      calcColumn({
-        ...col,
-        ...(parsed.ok ? { As: parsed.As, nBars: parsed.n, barDia: parsed.dia } : {}),
-      }),
-    [col, parsed.As, parsed.n, parsed.dia, parsed.ok]
-  );
+function loadList(): ColumnInput[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(STORAGE) ?? '[]');
+    if (Array.isArray(raw) && raw.length) return raw.map((c) => ({ ...createDefaultColumn(), ...c }));
+  } catch { /* ignore */ }
+  return [createDefaultColumn('c1')];
+}
 
+function download(name: string, content: BlobPart, type: string) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export default function ColumnPanel() {
+  const [items, setItems] = useState<ColumnInput[]>(loadList);
+  const [selectedId, setSelectedId] = useState(items[0]?.id ?? '');
+  const fileRef = useRef<HTMLInputElement>(null);
+  const selected = items.find((c) => c.id === selectedId) ?? items[0];
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE, JSON.stringify(items));
+  }, [items]);
+
+  const results = useMemo(
+    () =>
+      items.map((col) => {
+        const p = parseColumnBars(col.bars ?? '');
+        const input = { ...col, ...(p.ok ? { As: p.As, nBars: p.n, barDia: p.dia } : {}) };
+        return { col: input, result: calcColumn(input) };
+      }),
+    [items]
+  );
+  const current = results.find((r) => r.col.id === selected.id) ?? results[0];
+  const result = current.result;
+  const parsed = parseColumnBars(selected.bars ?? '');
+
+  const patch = (p: Partial<ColumnInput>) =>
+    setItems((list) => list.map((c) => (c.id === selected.id ? { ...c, ...p } : c)));
   const setNum = (key: keyof ColumnInput, raw: string) => {
     const n = raw === '' || raw === '-' ? 0 : Number(raw);
-    setCol((c) => ({ ...c, [key]: Number.isFinite(n) ? n : 0 }));
+    patch({ [key]: Number.isFinite(n) ? n : 0 } as Partial<ColumnInput>);
   };
-  const setStr = (key: keyof ColumnInput, value: string) => setCol((c) => ({ ...c, [key]: value }));
+  const setStr = (key: keyof ColumnInput, value: string) => patch({ [key]: value } as Partial<ColumnInput>);
+
+  const add = () => {
+    const c = createDefaultColumn();
+    c.name = `Cột ${items.length + 1}`;
+    setItems((list) => [...list, c]);
+    setSelectedId(c.id);
+  };
+  const remove = () => {
+    if (items.length === 1) return;
+    const rest = items.filter((c) => c.id !== selected.id);
+    setItems(rest);
+    setSelectedId(rest[0].id);
+  };
+
+  const exportJson = () =>
+    download(
+      'cot-btct-v1.json',
+      JSON.stringify({ version: 'column-v1.1', exportedAt: new Date().toISOString(), columns: items }, null, 2),
+      'application/json'
+    );
+  const importJson = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(String(reader.result));
+        const list: ColumnInput[] = Array.isArray(data) ? data : data.columns;
+        if (!Array.isArray(list) || !list.length) throw new Error('empty');
+        const normalized = list.map((c) => ({ ...createDefaultColumn(), ...c, id: c.id || crypto.randomUUID() }));
+        setItems(normalized);
+        setSelectedId(normalized[0].id);
+      } catch {
+        alert('Không đọc được file JSON cột.');
+      }
+    };
+    reader.readAsText(file);
+  };
 
   return (
     <>
       <header>
         <div>
           <h1>Cột BTCT V1.1</h1>
-          <p>Nén · Lệch tâm · Độ mảnh · Đai · Tương tác N–M (gần đúng)</p>
+          <p>Độ mảnh · N–M (gần đúng) · Đai · vd≤0.65</p>
+        </div>
+        <div className="actions">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".json"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) importJson(f);
+              e.target.value = '';
+            }}
+          />
+          <button type="button" onClick={() => fileRef.current?.click()}>
+            Import JSON
+          </button>
+          <button type="button" onClick={exportJson}>
+            JSON
+          </button>
+          <button type="button" className="primary" onClick={() => window.print()}>
+            In / PDF
+          </button>
         </div>
       </header>
 
       <section className="notice">
-        <b>Cột V1.1:</b> theo Column.xlsm (Data_Column, ThepDai). vd ≤ 0.65 · λ ≤ 100 · μ min 1%.
-        Biểu đồ N–M <b>gần đúng</b> (Excel FS từ macro) — chưa khóa chuẩn TCVN.
-        Thép dạng <code>12d20</code> hoặc <code>8d18+4d16</code> → As tự tính (khóa).
+        <b>Cột V1.1:</b> N–M gần đúng. Thép <code>8d20</code> → As khóa. Danh sách + localStorage + Import/Export JSON.
       </section>
 
-      <div className="workspace" style={{ gridTemplateColumns: '1fr 1fr' }}>
+      <div className="workspace">
+        <section className="beam-list card">
+          <div className="card-title">
+            <h2>Danh sách cột</h2>
+            <button type="button" className="primary" onClick={add}>
+              + Thêm
+            </button>
+          </div>
+          {results.map(({ col, result: r }) => (
+            <button
+              key={col.id}
+              type="button"
+              className={`beam-item ${col.id === selected.id ? 'selected' : ''}`}
+              onClick={() => setSelectedId(col.id)}
+            >
+              <span>
+                <b>{col.name}</b>
+                <small>
+                  {col.b}×{col.h} · N={fmt(col.N, 0)}
+                </small>
+              </span>
+              <span className={`status ${r.pass ? 'pass' : 'fail'}`}>{r.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}</span>
+            </button>
+          ))}
+        </section>
+
         <section className="input card">
           <div className="card-title">
-            <h2>Đầu vào: {col.name}</h2>
+            <h2>Đầu vào: {selected.name}</h2>
+            <button type="button" className="danger" onClick={remove} disabled={items.length === 1}>
+              Xóa
+            </button>
           </div>
           <fieldset>
-            <legend>Vật liệu & nhận diện</legend>
+            <legend>Nhận diện & vật liệu</legend>
             <div className="form">
               <label>
                 Tên
-                <input value={col.name} onChange={(e) => setStr('name', e.target.value)} />
+                <input value={selected.name} onChange={(e) => setStr('name', e.target.value)} />
               </label>
               <label>
                 Bê tông
-                <select value={col.concrete} onChange={(e) => setStr('concrete', e.target.value)}>
+                <select value={selected.concrete} onChange={(e) => setStr('concrete', e.target.value)}>
                   {concretes.map((x) => (
                     <option key={x.name}>{x.name}</option>
                   ))}
@@ -60,7 +175,7 @@ export default function ColumnPanel() {
               </label>
               <label>
                 Thép dọc
-                <select value={col.steel} onChange={(e) => setStr('steel', e.target.value)}>
+                <select value={selected.steel} onChange={(e) => setStr('steel', e.target.value)}>
                   {steels.map((x) => (
                     <option key={x.name}>{x.name}</option>
                   ))}
@@ -68,7 +183,7 @@ export default function ColumnPanel() {
               </label>
               <label>
                 Thép đai
-                <select value={col.stirrupSteel} onChange={(e) => setStr('stirrupSteel', e.target.value)}>
+                <select value={selected.stirrupSteel} onChange={(e) => setStr('stirrupSteel', e.target.value)}>
                   {steels.map((x) => (
                     <option key={x.name}>{x.name}</option>
                   ))}
@@ -76,105 +191,72 @@ export default function ColumnPanel() {
               </label>
             </div>
           </fieldset>
-
           <fieldset>
-            <legend>Tiết diện & chiều dài tính toán</legend>
+            <legend>Tiết diện & tải</legend>
             <div className="form">
               <label>
                 b (mm)
-                <input type="number" step="1" value={col.b} onChange={(e) => setNum('b', e.target.value)} />
+                <input type="number" step="1" value={selected.b} onChange={(e) => setNum('b', e.target.value)} />
               </label>
               <label>
                 h (mm)
-                <input type="number" step="1" value={col.h} onChange={(e) => setNum('h', e.target.value)} />
+                <input type="number" step="1" value={selected.h} onChange={(e) => setNum('h', e.target.value)} />
               </label>
               <label>
                 L0x (mm)
-                <input type="number" step="1" value={col.L0x} onChange={(e) => setNum('L0x', e.target.value)} />
+                <input type="number" step="1" value={selected.L0x} onChange={(e) => setNum('L0x', e.target.value)} />
               </label>
               <label>
                 L0y (mm)
-                <input type="number" step="1" value={col.L0y} onChange={(e) => setNum('L0y', e.target.value)} />
+                <input type="number" step="1" value={selected.L0y} onChange={(e) => setNum('L0y', e.target.value)} />
               </label>
-              <label>
-                Cover (mm)
-                <input type="number" step="1" value={col.cover} onChange={(e) => setNum('cover', e.target.value)} />
-              </label>
-              <label>
-                γb
-                <input type="number" step="0.01" value={col.gammaB ?? 0.85} onChange={(e) => setNum('gammaB', e.target.value)} />
-              </label>
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend>Nội lực ULS</legend>
-            <div className="form">
               <label>
                 N (kN)
-                <input type="number" step="0.1" value={col.N} onChange={(e) => setNum('N', e.target.value)} />
+                <input type="number" step="0.1" value={selected.N} onChange={(e) => setNum('N', e.target.value)} />
               </label>
               <label>
                 Mx (kNm)
-                <input type="number" step="0.1" value={col.Mx} onChange={(e) => setNum('Mx', e.target.value)} />
+                <input type="number" step="0.1" value={selected.Mx} onChange={(e) => setNum('Mx', e.target.value)} />
               </label>
               <label>
                 My (kNm)
-                <input type="number" step="0.1" value={col.My} onChange={(e) => setNum('My', e.target.value)} />
+                <input type="number" step="0.1" value={selected.My} onChange={(e) => setNum('My', e.target.value)} />
               </label>
               <label>
                 Qx (kN)
-                <input type="number" step="0.1" value={col.Qx ?? 0} onChange={(e) => setNum('Qx', e.target.value)} />
+                <input type="number" step="0.1" value={selected.Qx ?? 0} onChange={(e) => setNum('Qx', e.target.value)} />
               </label>
               <label>
                 Qy (kN)
-                <input type="number" step="0.1" value={col.Qy ?? 0} onChange={(e) => setNum('Qy', e.target.value)} />
+                <input type="number" step="0.1" value={selected.Qy ?? 0} onChange={(e) => setNum('Qy', e.target.value)} />
               </label>
             </div>
           </fieldset>
-
           <fieldset>
             <legend>Cốt thép</legend>
             <div className="form">
               <label>
-                Thép dọc (vd 12d20)
-                <input
-                  value={col.bars ?? ''}
-                  placeholder="12d20 hoặc 8d18+4d16"
-                  onChange={(e) => setStr('bars', e.target.value)}
-                />
+                a bảo vệ (mm)
+                <input type="number" step="1" value={selected.cover} onChange={(e) => setNum('cover', e.target.value)} />
+              </label>
+              <label>
+                Thép dọc (vd 8d20)
+                <input value={selected.bars ?? ''} placeholder="8d20" onChange={(e) => setStr('bars', e.target.value)} />
               </label>
               <label>
                 As (mm²) — tự tính
-                <input
-                  type="number"
-                  readOnly
-                  value={parsed.ok ? parsed.As : col.As ?? 0}
-                  title="As tính từ bố trí thép"
-                  style={{ background: '#f3f4f6', cursor: 'default' }}
-                />
+                <input type="number" readOnly value={parsed.ok ? parsed.As : 0} style={{ background: '#f3f4f6' }} />
               </label>
               <label>
                 Ø đai (mm)
-                <input type="number" step="1" value={col.stirrupDia} onChange={(e) => setNum('stirrupDia', e.target.value)} />
+                <input type="number" step="1" value={selected.stirrupDia} onChange={(e) => setNum('stirrupDia', e.target.value)} />
               </label>
               <label>
                 s đai (mm)
-                <input type="number" step="1" value={col.stirrupSpacing} onChange={(e) => setNum('stirrupSpacing', e.target.value)} />
-              </label>
-              <label>
-                Nhánh đai X
-                <input type="number" step="1" value={col.stirrupLegsX} onChange={(e) => setNum('stirrupLegsX', e.target.value)} />
-              </label>
-              <label>
-                Nhánh đai Y
-                <input type="number" step="1" value={col.stirrupLegsY} onChange={(e) => setNum('stirrupLegsY', e.target.value)} />
+                <input type="number" step="1" value={selected.stirrupSpacing} onChange={(e) => setNum('stirrupSpacing', e.target.value)} />
               </label>
             </div>
           </fieldset>
-          <p className="muted" style={{ marginTop: 8, fontSize: 12 }}>
-            Nguồn: Column.xlsm · ThepDai · Data_Column
-          </p>
         </section>
 
         <section className="result-panel card">
@@ -184,106 +266,16 @@ export default function ColumnPanel() {
               {result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}
             </span>
           </div>
-
           <section className="result-section">
-            <div className="section-heading">
-              <h3>Thép & hàm lượng</h3>
-              <span className={`status ${result.checks.mu.pass ? 'pass' : 'fail'}`}>
-                {result.checks.mu.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}
-              </span>
-            </div>
             <div className="result">
-              <span>As bố trí</span>
-              <strong>{fmt(result.As, 0)} mm²</strong>
-            </div>
-            <div className="result">
-              <span>μ / giới hạn</span>
+              <span>μ / λmax / vd</span>
               <strong>
-                {fmt(result.mu, 2)}% / {result.muMin}–{result.muMax}%
-              </strong>
-            </div>
-          </section>
-
-          <section className="result-section">
-            <div className="section-heading">
-              <h3>Độ mảnh</h3>
-              <span className={`status ${result.checks.slenderness.pass ? 'pass' : 'fail'}`}>
-                {result.checks.slenderness.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}
-              </span>
-            </div>
-            <div className="result">
-              <span>λx / λy / λmax</span>
-              <strong>
-                {fmt(result.lambdaX, 1)} / {fmt(result.lambdaY, 1)} / {fmt(result.lambdaMax, 1)}
+                {fmt(result.mu, 3)}% / {fmt(result.lambdaMax, 1)} / {fmt(result.vd, 3)}
               </strong>
             </div>
             <div className="result">
-              <span>[λ]</span>
-              <strong>{result.lambdaLimit}</strong>
-            </div>
-          </section>
-
-          <section className="result-section">
-            <div className="section-heading">
-              <h3>N–M (gần đúng)</h3>
-              <span className={`status ${result.checks.interaction.pass ? 'pass' : 'fail'}`}>
-                {result.checks.interaction.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}
-              </span>
-            </div>
-            <div className="result">
-              <span>N0</span>
-              <strong>{fmt(result.N0, 0)} kN</strong>
-            </div>
-            <div className="result">
-              <span>Mx0 / My0</span>
-              <strong>
-                {fmt(result.Mx0, 1)} / {fmt(result.My0, 1)} kNm
-              </strong>
-            </div>
-            <div className="result">
-              <span>Tương tác (α={result.alpha})</span>
+              <span>N–M α (gần đúng)</span>
               <strong>{fmt(result.interaction, 3)}</strong>
-            </div>
-            <div className="result">
-              <span>vd / [vd]</span>
-              <strong>
-                {fmt(result.vd, 3)} / {result.vdLimit}
-              </strong>
-            </div>
-          </section>
-
-          <section className="result-section">
-            <div className="section-heading">
-              <h3>Cắt (ThepDai)</h3>
-            </div>
-            <div className="result">
-              <span>Qx / Qbt / Qb+Qsw</span>
-              <strong>
-                {fmt(result.shearX.qDemand)} / {fmt(result.shearX.qbt)} / {fmt(result.shearX.qRes)}
-              </strong>
-            </div>
-            <div className="result">
-              <span>Qy / Qbt / Qb+Qsw</span>
-              <strong>
-                {fmt(result.shearY.qDemand)} / {fmt(result.shearY.qbt)} / {fmt(result.shearY.qRes)}
-              </strong>
-            </div>
-            <div className="checks">
-              <div className={result.shearX.check.pass ? 'text-pass' : 'text-fail'}>
-                {result.shearX.check.pass ? '✓' : '×'} X: {result.shearX.check.message}
-              </div>
-              <div className={result.shearY.check.pass ? 'text-pass' : 'text-fail'}>
-                {result.shearY.check.pass ? '✓' : '×'} Y: {result.shearY.check.message}
-              </div>
-            </div>
-          </section>
-
-          <section className="result-section">
-            <div className="section-heading">
-              <h3>Cấu tạo</h3>
-              <span className={`status ${result.checks.detailing.pass ? 'pass' : 'fail'}`}>
-                {result.checks.detailing.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}
-              </span>
             </div>
             <div className="checks">
               {Object.values(result.checks).map((c) => (
@@ -291,19 +283,81 @@ export default function ColumnPanel() {
                   {c.pass ? '✓' : '×'} {c.message}
                 </div>
               ))}
+              <div className={result.shearX.check.pass ? 'text-pass' : 'text-fail'}>
+                {result.shearX.check.pass ? '✓' : '×'} Qx: {result.shearX.check.message}
+              </div>
+              <div className={result.shearY.check.pass ? 'text-pass' : 'text-fail'}>
+                {result.shearY.check.pass ? '✓' : '×'} Qy: {result.shearY.check.message}
+              </div>
             </div>
           </section>
-
           {result.warnings.length > 0 && (
             <div className="warnings">
               <b>Cảnh báo</b>
-              {result.warnings.map((w) => (
+              {result.warnings.slice(0, 8).map((w) => (
                 <div key={w}>• {w}</div>
               ))}
             </div>
           )}
         </section>
       </div>
+
+      <section className="summary card">
+        <div className="card-title">
+          <h2>Bảng tổng hợp cột</h2>
+          <small>localStorage · Import/Export JSON</small>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Cột</th>
+                <th>Tiết diện</th>
+                <th>N</th>
+                <th>Mảnh</th>
+                <th>μ</th>
+                <th>N–M</th>
+                <th>Đai</th>
+                <th>Tổng</th>
+              </tr>
+            </thead>
+            <tbody>
+              {results.map(({ col, result: r }) => (
+                <tr key={col.id}>
+                  <td>{col.name}</td>
+                  <td>
+                    {col.b}×{col.h}
+                  </td>
+                  <td>{fmt(col.N, 0)}</td>
+                  <td>
+                    <span className={`status ${r.checks.slenderness.pass ? 'pass' : 'fail'}`}>
+                      {r.checks.slenderness.pass ? 'ĐẠT' : 'KĐ'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`status ${r.checks.mu.pass ? 'pass' : 'fail'}`}>
+                      {r.checks.mu.pass ? 'ĐẠT' : 'KĐ'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`status ${r.checks.interaction.pass ? 'pass' : 'fail'}`}>
+                      {r.checks.interaction.pass ? 'ĐẠT' : 'KĐ'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`status ${r.shearX.check.pass && r.shearY.check.pass ? 'pass' : 'fail'}`}>
+                      {r.shearX.check.pass && r.shearY.check.pass ? 'ĐẠT' : 'KĐ'}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`status ${r.pass ? 'pass' : 'fail'}`}>{r.pass ? 'ĐẠT' : 'KĐ'}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </>
   );
 }
