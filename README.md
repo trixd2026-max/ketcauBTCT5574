@@ -1,55 +1,36 @@
 # Kết cấu BTCT 5574
 
-Web app hỗ trợ tính toán kết cấu bê tông cốt thép theo kiến trúc module, lấy workbook Excel làm nguồn đối chiếu.
+Web app hỗ trợ tính toán kết cấu bê tông cốt thép theo kiến trúc module.
 
 **Live:** [tinhketcaubtct2018.vercel.app](https://tinhketcaubtct2018.vercel.app)
 
-## Dầm BTCT V1.1
+## Dầm BTCT V1.2
 
-Đã có luồng thực dụng cho nhiều dầm:
+- **Uốn** M− / M+ (αm, ξ, ξR, As, μ, Mu)
+- **Cắt** Q ≤ Qbt, Q ≤ Qb+Qsw, smax
+- **Cấu tạo** lớp bảo vệ, số thanh, khoảng cách, đai
+- **Nứt (SLS)** tiết diện quy đổi, Mcrc, acrc ngắn hạn / dài hạn (TCVN 5574 style, từ KiemTraNut)
+- **Võng ước lượng** cần nhập L; δ ≈ k·M·L²/EI_eff; giới hạn L/250 mặc định
+- 10+ golden cases, Import/Export JSON, CSV, XLSX, In
 
-- Nhập tiết diện, B15–B60, thép dọc/đai, M−, M+, Q, lớp bảo vệ, thép dọc và đai.
-- Tính riêng uốn M− (thép trên) và M+ (thép dưới): `ho`, `αm`, `ξ`, `ξR`, As yêu cầu, As bố trí, hàm lượng min/max và `Mu` giới hạn.
-- Kiểm tra cắt: `Q ≤ Qbt`, `Q ≤ Qb + Qsw` và khoảng cách đai lớn nhất.
-- **Cấu tạo cơ bản V1.1:** lớp bảo vệ tối thiểu, số thanh tối thiểu (≥2), khoảng cách thép dọc, quy tắc đai.
-- Kết luận ĐẠT/KHÔNG ĐẠT, cảnh báo, bảng tổng hợp, lưu dự án bằng localStorage.
-- Xuất JSON / CSV / XLSX. **Import JSON** (file xuất từ app). Nút In dùng hộp in trình duyệt để lưu PDF (CSS print tối ưu).
-- **10 golden cases** regression (trong `src/engine/beam.test.ts`), trong đó 1 case đối chiếu trực tiếp từ `Beam.xlsm/KiemTraUonCat`.
-
-Các bảng vật liệu và công thức uốn/cắt V1 được chép từ các vùng đã đọc được trong `Beam.xlsm`, không phải một chứng nhận tiêu chuẩn.
-
-### Chưa được đối chiếu hoặc chưa có trong kết luận V1.1
-
-- Kiểm tra nứt và võng đầy đủ (có sheet tham chiếu trong workbook nhưng chưa port).
-- Neo, nối, giới hạn chi tiết theo mọi trường hợp, dầm T/I, cốt thép nén.
-- Tải trọng, tổ hợp nội lực, khung phẳng/không gian.
-- Xác nhận độc lập đầy đủ theo TCVN 5574:2018 (hiện dựa trên workbook + công thức công khai).
-
-## Lộ trình
-
-- [x] Engine tính toán dùng chung
-- [x] Dầm BTCT (V1 uốn/cắt + V1.1 cấu tạo)
-- [x] Golden Cases (10 cases) + regression tests
-- [ ] Kiểm tra nứt + võng
-- [ ] Cột BTCT
-- [ ] Sàn BTCT
-- [ ] Móng BTCT
-- [ ] Nhập/xuất Excel workbook phức tạp hơn
-- [ ] Báo cáo PDF chuyên nghiệp hơn (jsPDF / server)
-
-> Đây là công cụ hỗ trợ tính toán. Dầm V1.1 chưa được đánh dấu là phù hợp đầy đủ với TCVN 5574:2018 và không thay thế kiểm tra của kỹ sư chịu trách nhiệm.
+Moment SLS mặc định ≈ MULS/1.4 (có thể nhập tay). Võng chưa phải tích phân độ cong đầy đủ theo sơ đồ moment.
 
 ## Chạy local
 
 ```bash
 npm install
 npm run dev
-npm test   # chạy 10 golden cases
+npm test
 ```
 
-## Changelog V1.1
+## Lộ trình
 
-- Thêm 10 golden cases (GC01–GC10).
-- Thêm module kiểm tra cấu tạo cơ bản.
-- Hỗ trợ Import JSON.
-- Cải thiện bảng tổng hợp và notice giới hạn.
+- [x] Uốn + cắt + cấu tạo
+- [x] Golden cases
+- [x] Nứt (section check)
+- [x] Võng ước lượng
+- [ ] Võng tích phân đầy đủ (nhiều mặt cắt)
+- [ ] Cột / Sàn / Móng
+- [ ] PDF chuyên nghiệp
+
+> Công cụ hỗ trợ — không thay thế kiểm tra của kỹ sư chịu trách nhiệm.
