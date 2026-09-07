@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { calcSlab, createDefaultSlab, parseSlabBars, type SlabInput } from '../engine/slab';
 import { concretes, steels } from '../engine/materials';
+import { openReportPdf, slabReportDoc } from '../report/reportPdf';
 
 const STORAGE = 'ketcau-btct-5574-slabs-v1';
 const fmt = (v: number, d = 1) =>
@@ -95,7 +96,7 @@ export default function SlabPanel() {
             onChange={(e) => { const f = e.target.files?.[0]; if (f) importJson(f); e.target.value = ''; }} />
           <button type="button" onClick={() => fileRef.current?.click()}>Import JSON</button>
           <button type="button" onClick={exportJson}>JSON</button>
-          <button type="button" className="primary" onClick={() => window.print()}>In / PDF</button>
+          <button type="button" className="primary" onClick={() => openReportPdf(slabReportDoc(selected, result))}>Xuất PDF</button>
         </div>
       </header>
 
