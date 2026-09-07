@@ -5,6 +5,7 @@ import { concretes, steels } from './engine/materials';
 import ColumnPanel from './modules/ColumnPanel';
 import SlabPanel from './modules/SlabPanel';
 import FoundationPanel from './modules/FoundationPanel';
+import { openReportPdf, beamReportDoc } from './report/reportPdf';
 
 type ModuleId = 'beam' | 'column' | 'slab' | 'foundation';
 
@@ -212,7 +213,7 @@ export default function App() {
             <button onClick={exportJson}>JSON</button>
             <button onClick={exportCsv}>CSV</button>
             <button onClick={exportXlsx}>XLSX</button>
-            <button className="primary" onClick={() => window.print()}>In / PDF</button>
+            <button className="primary" onClick={() => openReportPdf(beamReportDoc(selected, result))}>Xuất PDF</button>
           </div>
         </header>
 
@@ -296,9 +297,9 @@ export default function App() {
               <DecimalField label="Mser+ dài (kNm)" value={selected.MserLongPos ?? 0} step="0.01" onChange={(v) => update('MserLongPos', v)} />
               <Field label="Độ ẩm">
                 <select value={selected.humidity ?? 'mid'} onChange={(e) => update('humidity', e.target.value)}>
-                  <option value="high">{'>'}75%</option>
+                  <option value="high">>75%</option>
                   <option value="mid">40–75%</option>
-                  <option value="low">{'<'}40%</option>
+                  <option value="low"><40%</option>
                 </select>
               </Field>
               <Field label="Gối tựa">
