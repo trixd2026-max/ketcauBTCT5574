@@ -4,10 +4,11 @@ import { BeamInput, BeamResult, calcBeam, createDefaultBeam } from './engine/bea
 import { concretes, steels } from './engine/materials';
 
 const STORAGE_KEY = 'ketcau-btct-5574-beams-v1';
-const numberKeys = new Set<keyof BeamInput>([
+const numberKeys = new Set<string>([
   'b', 'h', 'aTop', 'aBottom', 'MNegative', 'MPositive', 'Q',
   'AsTop', 'AsBottom', 'stirrupLegs', 'stirrupDia', 'stirrupSpacing',
   'nBarsTop', 'nBarsBottom', 'barDiaTop', 'barDiaBottom',
+  'MserShortNeg', 'MserShortPos', 'MserLongNeg', 'MserLongPos', 'L', 'limitRatio',
 ]);
 const fmt = (v: number, d = 1) =>
   Number.isFinite(v) ? v.toLocaleString('vi-VN', { maximumFractionDigits: d, minimumFractionDigits: d }) : '—';
@@ -46,7 +47,7 @@ export default function App() {
     setBeams((items) =>
       items.map((beam) =>
         beam.id === selected.id
-          ? { ...beam, [key]: numberKeys.has(key) ? Number(value) || 0 : value }
+          ? { ...beam, [key]: numberKeys.has(key as string) ? Number(value) || 0 : value }
           : beam
       )
     );
@@ -68,37 +69,28 @@ export default function App() {
   const exportJson = () =>
     download(
       'du-an-dam-btct-v1.json',
-      JSON.stringify({ version: 'beam-v1.1', exportedAt: new Date().toISOString(), beams }, null, 2),
+      JSON.stringify({ version: 'beam-v1.2', exportedAt: new Date().toISOString(), beams }, null, 2),
       'application/json'
     );
 
   const rows = results.map(({ beam, result }) => ({
     'Tên dầm': beam.name,
-    'b (mm)': beam.b,
-    'h (mm)': beam.h,
-    'M- (kNm)': beam.MNegative,
-    'M+ (kNm)': beam.MPositive,
-    'Q (kN)': beam.Q,
-    'As trên (mm²)': beam.AsTop,
-    'As dưới (mm²)': beam.AsBottom,
-    'Uốn M-': result.negative.check.pass ? 'ĐẠT' : 'KHÔNG ĐẠT',
-    'Uốn M+': result.positive.check.pass ? 'ĐẠT' : 'KHÔNG ĐẠT',
-    'Cắt': result.shear.check.pass ? 'ĐẠT' : 'KHÔNG ĐẠT',
-    'Cấu tạo': result.detailing.pass ? 'ĐẠT' : 'KHÔNG ĐẠT',
-    'Tổng': result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT',
+    'b×h': `${beam.b}×${beam.h}`,
+    'M-/M+': `${beam.MNegative}/${beam.MPositive}`,
+    'Uốn': result.negative.check.pass && result.positive.check.pass ? 'ĐẠT' : 'KĐ',
+    'Cắt': result.shear.check.pass ? 'ĐẠT' : 'KĐ',
+    'Cấu tạo': result.detailing.pass ? 'ĐẠT' : 'KĐ',
+    'Nứt': result.crack.pass ? 'ĐẠT' : 'KĐ',
+    'Võng': (beam.L ?? 0) > 0 ? (result.deflection.pass ? 'ĐẠT' : 'KĐ') : '—',
+    'Tổng': result.pass ? 'ĐẠT' : 'KĐ',
   }));
 
   const exportCsv = () =>
-    download(
-      'tong-hop-dam-btct-v1.csv',
-      '\ufeff' + XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(rows)),
-      'text/csv;charset=utf-8'
-    );
+    download('tong-hop-dam-btct-v1.csv', '\ufeff' + XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(rows)), 'text/csv;charset=utf-8');
 
   const exportXlsx = () => {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Tổng hợp');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([detailRow(selected, result)]), 'Dầm đang chọn');
     XLSX.writeFile(wb, 'dam-btct-v1.xlsx');
   };
 
@@ -108,12 +100,12 @@ export default function App() {
       try {
         const data = JSON.parse(String(reader.result));
         const list: BeamInput[] = Array.isArray(data) ? data : data.beams;
-        if (!Array.isArray(list) || !list.length) throw new Error('Không có dầm');
+        if (!Array.isArray(list) || !list.length) throw new Error('empty');
         const normalized = list.map((b) => ({ ...createDefaultBeam(), ...b, id: b.id || crypto.randomUUID() }));
         setBeams(normalized);
         setSelectedId(normalized[0].id);
-      } catch (e) {
-        alert('Không đọc được file JSON. Hãy dùng file xuất từ app này.');
+      } catch {
+        alert('Không đọc được file JSON.');
       }
     };
     reader.readAsText(file);
@@ -123,35 +115,26 @@ export default function App() {
     <div className="app">
       <aside>
         <div className="brand">BTCT <span>5574</span></div>
-        <p className="muted">DẦM V1.1 · UỐN · CẮT · CẤU TẠO</p>
+        <p className="muted">DẦM V1.2 · UỐN · CẮT · NỨT · VÕNG</p>
         <button className="nav active">▣&nbsp; Dầm BTCT</button>
         <button className="nav disabled">▣&nbsp; Cột BTCT</button>
         <button className="nav disabled">▣&nbsp; Sàn BTCT</button>
         <button className="nav disabled">▣&nbsp; Móng BTCT</button>
         <div className="sidefoot">
-          V1.1 thực dụng<br />
-          Golden cases + cấu tạo cơ bản<br />
-          Chưa khóa chuẩn TCVN đầy đủ
+          V1.2 thực dụng<br />
+          Nứt + võng ước lượng<br />
+          Chưa khóa chuẩn đầy đủ
         </div>
       </aside>
       <main>
         <header>
           <div>
-            <h1>Dầm BTCT V1.1</h1>
-            <p>Nhập → Uốn M−/M+ → Cắt → Cấu tạo → Tổng hợp PASS/FAIL</p>
+            <h1>Dầm BTCT V1.2</h1>
+            <p>Uốn · Cắt · Cấu tạo · Nứt · Võng (ước lượng)</p>
           </div>
           <div className="actions">
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".json,application/json"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) importJson(f);
-                e.target.value = '';
-              }}
-            />
+            <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }}
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) importJson(f); e.target.value = ''; }} />
             <button onClick={() => fileRef.current?.click()}>Import JSON</button>
             <button onClick={exportJson}>JSON</button>
             <button onClick={exportCsv}>CSV</button>
@@ -161,25 +144,22 @@ export default function App() {
         </header>
 
         <section className="notice">
-          <b>Giới hạn phiên bản V1.1:</b> uốn + cắt theo công thức trích từ <code>Beam.xlsm/KiemTraUonCat</code> + kiểm tra cấu tạo cơ bản (lớp bảo vệ, số thanh, khoảng cách). 
-          Chưa có kiểm tra nứt/võng đầy đủ, neo/nối chi tiết, dầm T/I. Có 10 golden cases regression. Không thay thế kiểm tra của kỹ sư chịu trách nhiệm.
+          <b>V1.2:</b> thêm kiểm tra <b>nứt</b> (tiết diện quy đổi, Mcrc, acrc ngắn/dài hạn) và <b>võng ước lượng</b> (cần nhập L).
+          Moment SLS mặc định ≈ M<sub>ULS</sub>/1.4 (có thể sửa). Võng chưa tích phân độ cong theo sơ đồ moment đầy đủ.
         </section>
 
         <div className="workspace">
           <section className="beam-list card">
             <div className="card-title">
               <h2>Danh sách dầm</h2>
-              <button className="primary" onClick={add}>+ Thêm dầm</button>
+              <button className="primary" onClick={add}>+ Thêm</button>
             </div>
             {results.map(({ beam, result }) => (
-              <button
-                key={beam.id}
-                className={`beam-item ${beam.id === selected.id ? 'selected' : ''}`}
-                onClick={() => setSelectedId(beam.id)}
-              >
+              <button key={beam.id} className={`beam-item ${beam.id === selected.id ? 'selected' : ''}`}
+                onClick={() => setSelectedId(beam.id)}>
                 <span>
                   <b>{beam.name}</b>
-                  <small>{beam.b}×{beam.h} mm · M− {beam.MNegative} · M+ {beam.MPositive} kNm</small>
+                  <small>{beam.b}×{beam.h} · L={beam.L ?? '—'}m</small>
                 </span>
                 <Status pass={result.pass} />
               </button>
@@ -191,8 +171,8 @@ export default function App() {
               <h2>Đầu vào: {selected.name}</h2>
               <button className="danger" onClick={remove} disabled={beams.length === 1}>Xóa</button>
             </div>
-            <Group title="Nhận diện & vật liệu">
-              <Field label="Tên dầm"><input value={selected.name} onChange={(e) => update('name', e.target.value)} /></Field>
+            <Group title="Vật liệu & nhận diện">
+              <Field label="Tên"><input value={selected.name} onChange={(e) => update('name', e.target.value)} /></Field>
               <Field label="Bê tông">
                 <select value={selected.concrete} onChange={(e) => update('concrete', e.target.value)}>
                   {concretes.map((x) => <option key={x.name}>{x.name}</option>)}
@@ -209,21 +189,42 @@ export default function App() {
                 </select>
               </Field>
             </Group>
-            <Group title="Tiết diện & nội lực">
+            <Group title="Tiết diện & ULS">
               <NumberField label="b (mm)" value={selected.b} onChange={(v) => update('b', v)} />
               <NumberField label="h (mm)" value={selected.h} onChange={(v) => update('h', v)} />
-              <NumberField label="M− (kNm)" value={selected.MNegative} onChange={(v) => update('MNegative', v)} />
-              <NumberField label="M+ (kNm)" value={selected.MPositive} onChange={(v) => update('MPositive', v)} />
+              <NumberField label="M− ULS (kNm)" value={selected.MNegative} onChange={(v) => update('MNegative', v)} />
+              <NumberField label="M+ ULS (kNm)" value={selected.MPositive} onChange={(v) => update('MPositive', v)} />
               <NumberField label="Q (kN)" value={selected.Q} onChange={(v) => update('Q', v)} />
             </Group>
-            <Group title="Cốt thép bố trí">
-              <NumberField label="a trên (mm)" value={selected.aTop} onChange={(v) => update('aTop', v)} />
-              <NumberField label="As trên (mm²)" value={selected.AsTop} onChange={(v) => update('AsTop', v)} />
-              <NumberField label="a dưới (mm)" value={selected.aBottom} onChange={(v) => update('aBottom', v)} />
-              <NumberField label="As dưới (mm²)" value={selected.AsBottom} onChange={(v) => update('AsBottom', v)} />
-              <NumberField label="Số nhánh đai" value={selected.stirrupLegs} onChange={(v) => update('stirrupLegs', v)} />
-              <NumberField label="Ø đai (mm)" value={selected.stirrupDia} onChange={(v) => update('stirrupDia', v)} />
-              <NumberField label="s đai (mm)" value={selected.stirrupSpacing} onChange={(v) => update('stirrupSpacing', v)} />
+            <Group title="Cốt thép">
+              <NumberField label="a trên" value={selected.aTop} onChange={(v) => update('aTop', v)} />
+              <NumberField label="As trên" value={selected.AsTop} onChange={(v) => update('AsTop', v)} />
+              <NumberField label="a dưới" value={selected.aBottom} onChange={(v) => update('aBottom', v)} />
+              <NumberField label="As dưới" value={selected.AsBottom} onChange={(v) => update('AsBottom', v)} />
+              <NumberField label="Nhánh đai" value={selected.stirrupLegs} onChange={(v) => update('stirrupLegs', v)} />
+              <NumberField label="Ø đai" value={selected.stirrupDia} onChange={(v) => update('stirrupDia', v)} />
+              <NumberField label="s đai" value={selected.stirrupSpacing} onChange={(v) => update('stirrupSpacing', v)} />
+            </Group>
+            <Group title="SLS · Nứt · Võng">
+              <NumberField label="L nhịp (m)" value={selected.L ?? 0} onChange={(v) => update('L', v)} />
+              <NumberField label="Mser− ngắn (kNm)" value={selected.MserShortNeg ?? 0} onChange={(v) => update('MserShortNeg', v)} />
+              <NumberField label="Mser+ ngắn (kNm)" value={selected.MserShortPos ?? 0} onChange={(v) => update('MserShortPos', v)} />
+              <NumberField label="Mser− dài (kNm)" value={selected.MserLongNeg ?? 0} onChange={(v) => update('MserLongNeg', v)} />
+              <NumberField label="Mser+ dài (kNm)" value={selected.MserLongPos ?? 0} onChange={(v) => update('MserLongPos', v)} />
+              <Field label="Độ ẩm">
+                <select value={selected.humidity ?? 'mid'} onChange={(e) => update('humidity', e.target.value)}>
+                  <option value="high">&gt;75%</option>
+                  <option value="mid">40–75%</option>
+                  <option value="low">&lt;40%</option>
+                </select>
+              </Field>
+              <Field label="Gối tựa">
+                <select value={selected.support ?? 'simple'} onChange={(e) => update('support', e.target.value)}>
+                  <option value="simple">Đơn giản</option>
+                  <option value="continuous">Liên tục</option>
+                  <option value="cantilever">Console</option>
+                </select>
+              </Field>
             </Group>
           </section>
 
@@ -232,14 +233,16 @@ export default function App() {
               <h2>Kết quả</h2>
               <Status pass={result.pass} large />
             </div>
-            <Flexure title="Uốn M− · thép trên" r={result.negative} />
-            <Flexure title="Uốn M+ · thép dưới" r={result.positive} />
+            <Flexure title="Uốn M−" r={result.negative} />
+            <Flexure title="Uốn M+" r={result.positive} />
             <Shear r={result} />
             <Detailing d={result.detailing} />
+            <CrackPanel c={result.crack} />
+            <DeflectionPanel d={result.deflection} hasL={(selected.L ?? 0) > 0} />
             {result.warnings.length > 0 && (
               <div className="warnings">
-                <b>Cảnh báo cần xử lý</b>
-                {result.warnings.map((w) => <div key={w}>• {w}</div>)}
+                <b>Cảnh báo</b>
+                {result.warnings.slice(0, 12).map((w) => <div key={w}>• {w}</div>)}
               </div>
             )}
           </section>
@@ -248,26 +251,25 @@ export default function App() {
         <section className="summary card">
           <div className="card-title">
             <h2>Bảng tổng hợp</h2>
-            <small>Tự lưu trên trình duyệt này · Import/Export JSON</small>
+            <small>localStorage · Import/Export JSON</small>
           </div>
           <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>Dầm</th><th>Tiết diện</th><th>M− / M+</th>
-                  <th>Uốn M−</th><th>Uốn M+</th><th>Cắt</th><th>Cấu tạo</th><th>Tổng</th>
+                  <th>Dầm</th><th>Tiết diện</th><th>Uốn</th><th>Cắt</th><th>Cấu tạo</th><th>Nứt</th><th>Võng</th><th>Tổng</th>
                 </tr>
               </thead>
               <tbody>
                 {results.map(({ beam, result }) => (
                   <tr key={beam.id}>
                     <td>{beam.name}</td>
-                    <td>{beam.b} × {beam.h}</td>
-                    <td>{beam.MNegative} / {beam.MPositive} kNm</td>
-                    <td><Status pass={result.negative.check.pass} /></td>
-                    <td><Status pass={result.positive.check.pass} /></td>
+                    <td>{beam.b}×{beam.h}</td>
+                    <td><Status pass={result.negative.check.pass && result.positive.check.pass} /></td>
                     <td><Status pass={result.shear.check.pass} /></td>
                     <td><Status pass={result.detailing.pass} /></td>
+                    <td><Status pass={result.crack.pass} /></td>
+                    <td>{(beam.L ?? 0) > 0 ? <Status pass={result.deflection.pass} /> : '—'}</td>
                     <td><Status pass={result.pass} /></td>
                   </tr>
                 ))}
@@ -280,41 +282,14 @@ export default function App() {
   );
 }
 
-function detailRow(beam: BeamInput, result: BeamResult) {
-  return {
-    'Tên dầm': beam.name,
-    'ho M- (mm)': result.negative.ho,
-    'αm M-': result.negative.alphaM,
-    'ξ / ξR M-': `${result.negative.xi} / ${result.negative.xiR}`,
-    'As yc M- (mm²)': result.negative.AsRequired,
-    'As cấp M- (mm²)': beam.AsTop,
-    'As yc M+ (mm²)': result.positive.AsRequired,
-    'As cấp M+ (mm²)': beam.AsBottom,
-    'Q (kN)': result.shear.qDemand,
-    'Qbt (kN)': result.shear.qbt,
-    'Qb + Qsw (kN)': result.shear.qResistance,
-    'Cấu tạo': result.detailing.pass ? 'ĐẠT' : 'KHÔNG ĐẠT',
-    'Kết quả': result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT',
-  };
-}
-
 function Group({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <fieldset>
-      <legend>{title}</legend>
-      <div className="form">{children}</div>
-    </fieldset>
-  );
+  return <fieldset><legend>{title}</legend><div className="form">{children}</div></fieldset>;
 }
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label>{label}{children}</label>;
 }
 function NumberField({ label, value, onChange }: { label: string; value: number; onChange: (v: string) => void }) {
-  return (
-    <Field label={label}>
-      <input type="number" value={value} onChange={(e) => onChange(e.target.value)} />
-    </Field>
-  );
+  return <Field label={label}><input type="number" value={value} onChange={(e) => onChange(e.target.value)} /></Field>;
 }
 function Status({ pass, large = false }: { pass: boolean; large?: boolean }) {
   return <span className={`status ${pass ? 'pass' : 'fail'} ${large ? 'large' : ''}`}>{pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}</span>;
@@ -324,11 +299,8 @@ function Flexure({ title, r }: { title: string; r: BeamResult['negative'] }) {
     <section className="result-section">
       <div className="section-heading"><h3>{title}</h3><Status pass={r.check.pass} /></div>
       <Result label="ho" value={`${fmt(r.ho)} mm`} />
-      <Result label="αm" value={fmt(r.alphaM, 4)} />
-      <Result label="ξ / ξR" value={`${fmt(r.xi, 3)} / ${fmt(r.xiR, 3)}`} />
-      <Result label="As yêu cầu / bố trí" value={`${fmt(r.AsRequired, 0)} / ${fmt(r.AsProvided, 0)} mm²`} />
-      <Result label="μ / min / max" value={`${fmt(r.mu, 2)} / ${fmt(r.muMin, 2)} / ${fmt(r.muMax, 2)} %`} />
-      <Result label="Mu giới hạn" value={`${fmt(r.Mu)} kNm`} />
+      <Result label="αm / ξ / ξR" value={`${fmt(r.alphaM, 3)} / ${fmt(r.xi, 3)} / ${fmt(r.xiR, 3)}`} />
+      <Result label="As yc / bố trí" value={`${fmt(r.AsRequired, 0)} / ${fmt(r.AsProvided, 0)} mm²`} />
       <small className={r.check.pass ? 'text-pass' : 'text-fail'}>{r.check.message}</small>
     </section>
   );
@@ -337,12 +309,9 @@ function Shear({ r }: { r: BeamResult }) {
   const s = r.shear;
   return (
     <section className="result-section">
-      <div className="section-heading"><h3>Cắt Q</h3><Status pass={s.check.pass} /></div>
-      <Result label="ho kiểm tra" value={`${fmt(s.ho)} mm`} />
+      <div className="section-heading"><h3>Cắt</h3><Status pass={s.check.pass} /></div>
       <Result label="Q / Qbt" value={`${fmt(s.qDemand)} / ${fmt(s.qbt)} kN`} />
-      <Result label="Qb + Qsw" value={`${fmt(s.qB)} + ${fmt(s.qSw)} = ${fmt(s.qResistance)} kN`} />
-      <Result label="Asw / qsw" value={`${fmt(s.stirrupArea, 0)} mm² / ${fmt(s.qsw, 1)} N/mm`} />
-      <Result label="s bố trí / smax" value={`${fmt(s.sMax, 0)} mm giới hạn`} />
+      <Result label="Qb+Qsw" value={`${fmt(s.qResistance)} kN`} />
       <Checks checks={[s.compressionCheck, s.resistanceCheck, s.spacingCheck]} />
     </section>
   );
@@ -350,8 +319,37 @@ function Shear({ r }: { r: BeamResult }) {
 function Detailing({ d }: { d: BeamResult['detailing'] }) {
   return (
     <section className="result-section">
-      <div className="section-heading"><h3>Cấu tạo cơ bản</h3><Status pass={d.pass} /></div>
+      <div className="section-heading"><h3>Cấu tạo</h3><Status pass={d.pass} /></div>
       <Checks checks={d.checks} />
+    </section>
+  );
+}
+function CrackPanel({ c }: { c: BeamResult['crack'] }) {
+  return (
+    <section className="result-section">
+      <div className="section-heading"><h3>Nứt (SLS)</h3><Status pass={c.pass} /></div>
+      <Result label="Mcrc" value={`${fmt(c.Mcrc)} kNm`} />
+      <Result label="Trạng thái" value={c.cracked ? 'Có nứt' : 'Không nứt'} />
+      <Result label="acrc ngắn / giới hạn" value={c.acrcShort != null ? `${fmt(c.acrcShort, 3)} / ${c.limitShort} mm` : '—'} />
+      <Result label="acrc dài / giới hạn" value={c.acrcLong != null ? `${fmt(c.acrcLong, 3)} / ${c.limitLong} mm` : '—'} />
+      <Checks checks={[c.checkShort, c.checkLong]} />
+    </section>
+  );
+}
+function DeflectionPanel({ d, hasL }: { d: BeamResult['deflection']; hasL: boolean }) {
+  return (
+    <section className="result-section">
+      <div className="section-heading"><h3>Võng (ước lượng)</h3>{hasL ? <Status pass={d.pass} /> : <span className="status">cần L</span>}</div>
+      {hasL ? (
+        <>
+          <Result label="δ ngắn / giới hạn" value={`${fmt(d.deltaShort)} / ${fmt(d.limit)} mm`} />
+          <Result label="δ dài / giới hạn" value={`${fmt(d.deltaLong)} / ${fmt(d.limit)} mm`} />
+          <Result label="L/δ" value={`L/${d.limitRatio}`} />
+          <Checks checks={[d.checkShort, d.checkLong]} />
+        </>
+      ) : (
+        <small>Nhập chiều dài nhịp L (m) để tính võng gần đúng.</small>
+      )}
     </section>
   );
 }
@@ -367,10 +365,5 @@ function Checks({ checks }: { checks: { pass: boolean; message: string }[] }) {
   );
 }
 function Result({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="result">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
+  return <div className="result"><span>{label}</span><strong>{value}</strong></div>;
 }
