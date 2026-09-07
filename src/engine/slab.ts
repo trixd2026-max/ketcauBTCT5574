@@ -183,7 +183,7 @@ export function calcSlab(input: SlabInput): SlabResult {
     Mlong: Mser * 0.7,
     humidity: input.humidity ?? 'mid',
   });
-  const Ldef = input.L ?? Math.min(input.Lx || 0, input.Ly || 0) || 0;
+  const Ldef = input.L ?? (Math.min(input.Lx || 0, input.Ly || 0) || 0);
   const defR = calcDeflection({
     b,
     h: input.h,
