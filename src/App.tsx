@@ -296,9 +296,9 @@ export default function App() {
               <DecimalField label="Mser+ dài (kNm)" value={selected.MserLongPos ?? 0} step="0.01" onChange={(v) => update('MserLongPos', v)} />
               <Field label="Độ ẩm">
                 <select value={selected.humidity ?? 'mid'} onChange={(e) => update('humidity', e.target.value)}>
-                  <option value="high">>75%</option>
+                  <option value="high">{'>'}75%</option>
                   <option value="mid">40–75%</option>
-                  <option value="low"><40%</option>
+                  <option value="low">{'<'}40%</option>
                 </select>
               </Field>
               <Field label="Gối tựa">
