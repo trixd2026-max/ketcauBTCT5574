@@ -57,9 +57,23 @@ export default function App() {
   const [beams, setBeams] = useState<BeamInput[]>(getSaved);
   const [selectedId, setSelectedId] = useState(beams[0]?.id ?? '');
   const fileRef = useRef<HTMLInputElement>(null);
-  const selected = beams.find((b) => b.id === selectedId) ?? beams[0];
+  const selectedRaw = beams.find((b) => b.id === selectedId) ?? beams[0];
+  /** Đồng bộ As từ chuỗi thép trước khi tính */
+  const syncAs = (beam: BeamInput): BeamInput => {
+    const top = parseBars(beam.barsTop ?? '');
+    const bot = parseBars(beam.barsBottom ?? '');
+    return {
+      ...beam,
+      ...(top.ok ? { AsTop: top.As, nBarsTop: top.n, barDiaTop: top.dia } : {}),
+      ...(bot.ok ? { AsBottom: bot.As, nBarsBottom: bot.n, barDiaBottom: bot.dia } : {}),
+    };
+  };
+  const selected = syncAs(selectedRaw);
   const result = useMemo(() => calcBeam(selected), [selected]);
-  const results = useMemo(() => beams.map((beam) => ({ beam, result: calcBeam(beam) })), [beams]);
+  const results = useMemo(() => beams.map((beam) => {
+    const b = syncAs(beam);
+    return { beam: b, result: calcBeam(b) };
+  }), [beams]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(beams));
@@ -80,15 +94,17 @@ export default function App() {
   const updateBars = (side: 'Top' | 'Bottom', spec: string) => {
     const parsed = parseBars(spec);
     if (side === 'Top') {
-      patchSelected({
-        barsTop: spec,
-        ...(parsed.ok ? { AsTop: parsed.As, nBarsTop: parsed.n, barDiaTop: parsed.dia } : {}),
-      });
+      if (parsed.ok) {
+        patchSelected({ barsTop: spec, AsTop: parsed.As, nBarsTop: parsed.n, barDiaTop: parsed.dia });
+      } else {
+        patchSelected({ barsTop: spec });
+      }
     } else {
-      patchSelected({
-        barsBottom: spec,
-        ...(parsed.ok ? { AsBottom: parsed.As, nBarsBottom: parsed.n, barDiaBottom: parsed.dia } : {}),
-      });
+      if (parsed.ok) {
+        patchSelected({ barsBottom: spec, AsBottom: parsed.As, nBarsBottom: parsed.n, barDiaBottom: parsed.dia });
+      } else {
+        patchSelected({ barsBottom: spec });
+      }
     }
   };
 
@@ -152,8 +168,13 @@ export default function App() {
     reader.readAsText(file);
   };
 
+  // Luôn đồng bộ As từ chuỗi thép (nếu parse được)
   const barsTop = selected.barsTop ?? (selected.nBarsTop && selected.barDiaTop ? `${selected.nBarsTop}d${selected.barDiaTop}` : '');
   const barsBottom = selected.barsBottom ?? (selected.nBarsBottom && selected.barDiaBottom ? `${selected.nBarsBottom}d${selected.barDiaBottom}` : '');
+  const parsedTop = parseBars(barsTop);
+  const parsedBot = parseBars(barsBottom);
+  const displayAsTop = parsedTop.ok ? parsedTop.As : selected.AsTop;
+  const displayAsBot = parsedBot.ok ? parsedBot.As : selected.AsBottom;
 
   return (
     <div className="app">
@@ -188,7 +209,7 @@ export default function App() {
         </header>
 
         <section className="notice">
-          <b>V1.2:</b> L nhịp hỗ trợ 2 chữ số thập phân (vd 4.25). Cốt thép nhập dạng <code>5d18</code> hoặc <code>3d22+2d16</code> → tự tính As.
+          <b>V1.2:</b> L nhịp hỗ trợ 2 chữ số thập phân (vd 4.25). Cốt thép nhập dạng <code>5d18</code> hoặc <code>3d22+2d16</code> → tự tính As (ô As khóa).
           Moment SLS mặc định ≈ M<sub>ULS</sub>/1.4 nếu để 0.
         </section>
 
@@ -245,15 +266,15 @@ export default function App() {
               <Field label="Thép trên (vd 5d18)">
                 <input value={barsTop} placeholder="5d18 hoặc 3d22+2d16" onChange={(e) => updateBars('Top', e.target.value)} />
               </Field>
-              <Field label="As trên (mm²)">
-                <input type="number" step="0.1" value={selected.AsTop} onChange={(e) => update('AsTop', e.target.value)} />
+              <Field label="As trên (mm²) — tự tính">
+                <input type="number" step="0.1" value={displayAsTop} readOnly title="As tính từ bố trí thép trên" style={{ background: '#f3f4f6', cursor: 'default' }} />
               </Field>
               <DecimalField label="a dưới (mm)" value={selected.aBottom} step="1" onChange={(v) => update('aBottom', v)} />
               <Field label="Thép dưới (vd 4d20)">
                 <input value={barsBottom} placeholder="4d20 hoặc 3d22+2d16" onChange={(e) => updateBars('Bottom', e.target.value)} />
               </Field>
-              <Field label="As dưới (mm²)">
-                <input type="number" step="0.1" value={selected.AsBottom} onChange={(e) => update('AsBottom', e.target.value)} />
+              <Field label="As dưới (mm²) — tự tính">
+                <input type="number" step="0.1" value={displayAsBot} readOnly title="As tính từ bố trí thép dưới" style={{ background: '#f3f4f6', cursor: 'default' }} />
               </Field>
               <DecimalField label="Nhánh đai" value={selected.stirrupLegs} step="1" onChange={(v) => update('stirrupLegs', v)} />
               <DecimalField label="Ø đai (mm)" value={selected.stirrupDia} step="1" onChange={(v) => update('stirrupDia', v)} />
