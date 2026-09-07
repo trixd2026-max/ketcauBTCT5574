@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { calcColumn, createDefaultColumn, parseColumnBars, type ColumnInput } from '../engine/column';
 import { concretes, steels } from '../engine/materials';
+import { openReportPdf, columnReportDoc } from '../report/reportPdf';
 
 const STORAGE = 'ketcau-btct-5574-columns-v1';
 const fmt = (v: number, d = 1) =>
@@ -115,8 +116,8 @@ export default function ColumnPanel() {
           <button type="button" onClick={exportJson}>
             JSON
           </button>
-          <button type="button" className="primary" onClick={() => window.print()}>
-            In / PDF
+          <button type="button" className="primary" onClick={() => openReportPdf(columnReportDoc(selected, result))}>
+            Xuất PDF
           </button>
         </div>
       </header>
