@@ -4,6 +4,7 @@ import { BeamInput, BeamResult, calcBeam, createDefaultBeam } from './engine/bea
 import { concretes, steels } from './engine/materials';
 import ColumnPanel from './modules/ColumnPanel';
 import SlabPanel from './modules/SlabPanel';
+import FoundationPanel from './modules/FoundationPanel';
 
 type ModuleId = 'beam' | 'column' | 'slab' | 'foundation';
 
@@ -182,13 +183,13 @@ export default function App() {
     <div className="app">
       <aside>
         <div className="brand">BTCT <span>5574</span></div>
-        <p className="muted">V1.3 · DẦM · CỘT · SÀN</p>
+        <p className="muted">V1.3 · DẦM · CỘT · SÀN · MÓNG</p>
         <button type="button" className={`nav ${module === 'beam' ? 'active' : ''}`} onClick={() => setModule('beam')}>▣&nbsp; Dầm BTCT</button>
         <button type="button" className={`nav ${module === 'column' ? 'active' : ''}`} onClick={() => setModule('column')}>▣&nbsp; Cột BTCT</button>
         <button type="button" className={`nav ${module === 'slab' ? 'active' : ''}`} onClick={() => setModule('slab')}>▣&nbsp; Sàn BTCT</button>
-        <button type="button" className="nav disabled" title="Sắp tới">▣&nbsp; Móng BTCT</button>
+        <button type="button" className={`nav ${module === 'foundation' ? 'active' : ''}`} onClick={() => setModule('foundation')}>▣&nbsp; Móng BTCT</button>
         <div className="sidefoot">
-          V1.3 · Dầm + Cột + Sàn<br />
+          V1.3 · Dầm · Cột · Sàn · Móng<br />
           N–M / strip gần đúng<br />
           Chưa khóa chuẩn TCVN
         </div>
@@ -196,6 +197,7 @@ export default function App() {
       <main>
         {module === 'column' && <ColumnPanel />}
         {module === 'slab' && <SlabPanel />}
+        {module === 'foundation' && <FoundationPanel />}
         {module === 'beam' && (
         <>
         <header>
@@ -290,7 +292,7 @@ export default function App() {
               <DecimalField label="L nhịp (m)" value={selected.L ?? 0} step="0.01" onChange={(v) => update('L', v)} />
               <DecimalField label="Mser− ngắn (kNm)" value={selected.MserShortNeg ?? 0} step="0.01" onChange={(v) => update('MserShortNeg', v)} />
               <DecimalField label="Mser+ ngắn (kNm)" value={selected.MserShortPos ?? 0} step="0.01" onChange={(v) => update('MserShortPos', v)} />
-              <DecimalField label="Mser− dài (kNm)" value={selected.MserLongNeg ?? 0} step="0.01" onChange={(v) => update('MserLongNeg', v)} />
+              <DecimalField label="Mser− dài (kNm)" value={selected.MserLongNeg ?? 0} step="0.01" onChange={(v) => update('MserLongPos', v)} />
               <DecimalField label="Mser+ dài (kNm)" value={selected.MserLongPos ?? 0} step="0.01" onChange={(v) => update('MserLongPos', v)} />
               <Field label="Độ ẩm">
                 <select value={selected.humidity ?? 'mid'} onChange={(e) => update('humidity', e.target.value)}>
