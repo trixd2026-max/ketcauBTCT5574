@@ -66,7 +66,9 @@ export function buildReportHtml(doc: ReportDoc): string {
           )
           .join('')}</ul>`;
       }
-      if (sec.note) body += `<p class="note">${esc(sec.note)}</p>`;
+      if (sec.note) {
+        body += `<p class="note">${esc(sec.note)}</p>`;
+      }
       return `<section class="sec"><h2>${esc(sec.heading)}</h2>${body}</section>`;
     })
     .join('');
@@ -81,73 +83,48 @@ export function buildReportHtml(doc: ReportDoc): string {
   return `<!DOCTYPE html>
 <html lang="vi">
 <head>
-<meta charset="utf-8"/>
-<title>${esc(doc.meta.title)} — ${esc(doc.meta.itemName || '')}</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${esc(doc.meta.title)}</title>
 <style>
-  @page { size: A4; margin: 14mm 12mm; }
+  :root { --ink:#0f172a; --muted:#64748b; --line:#e2e8f0; --pass:#15803d; --fail:#b91c1c; --brand:#0f766e; }
   * { box-sizing: border-box; }
-  body {
-    font-family: "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
-    font-size: 11pt; color: #111; line-height: 1.45; margin: 0; padding: 0;
-  }
-  .sheet { max-width: 190mm; margin: 0 auto; padding: 12px 16px 24px; }
-  header.report-head {
-    border-bottom: 2.5px solid #0f3d6e;
-    padding-bottom: 10px; margin-bottom: 14px;
-    display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end;
-  }
-  .brand { font-size: 11pt; color: #0f3d6e; font-weight: 700; letter-spacing: 0.02em; }
-  .brand span { font-weight: 400; color: #456; }
-  h1 { font-size: 16pt; margin: 4px 0 2px; color: #0a2a4a; }
-  .sub { color: #555; font-size: 10pt; }
-  .meta-right { text-align: right; font-size: 9.5pt; color: #444; }
-  .badge {
-    display: inline-block; padding: 4px 12px; border-radius: 4px;
-    font-weight: 700; font-size: 12pt; letter-spacing: 0.04em;
-  }
-  .badge.pass { background: #dcfce7; color: #166534; border: 1px solid #86efac; }
-  .badge.fail { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; }
-  .sec { margin: 12px 0 10px; page-break-inside: avoid; }
-  .sec h2 {
-    font-size: 11.5pt; margin: 0 0 6px; padding: 4px 8px;
-    background: #e8eef5; color: #0f3d6e; border-left: 4px solid #0f3d6e;
-  }
-  table.kv { width: 100%; border-collapse: collapse; margin-bottom: 4px; }
-  table.kv td { padding: 3px 6px; vertical-align: top; border-bottom: 1px solid #e5e7eb; }
-  table.kv td.k { width: 42%; color: #374151; }
-  table.kv td.v { font-weight: 600; color: #111; }
-  table.data { width: 100%; border-collapse: collapse; font-size: 10pt; margin-top: 4px; }
-  table.data th, table.data td { border: 1px solid #cbd5e1; padding: 4px 6px; text-align: left; }
-  table.data th { background: #f1f5f9; color: #0f3d6e; }
-  ul.checks { list-style: none; padding: 0; margin: 4px 0; }
-  ul.checks li { padding: 2px 0; }
-  ul.checks li.ok { color: #166534; }
-  ul.checks li.bad { color: #991b1b; font-weight: 600; }
-  .note { font-size: 9.5pt; color: #555; margin: 4px 0; }
-  .warn h2 { background: #fef3c7; border-left-color: #d97706; color: #92400e; }
-  footer.report-foot {
-    margin-top: 18px; padding-top: 8px; border-top: 1px solid #cbd5e1;
-    font-size: 9pt; color: #666; display: flex; justify-content: space-between; gap: 12px;
-  }
-  .sign {
-    margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px;
-    text-align: center; font-size: 10pt; page-break-inside: avoid;
-  }
-  .sign .box { border-top: 1px solid #999; padding-top: 6px; margin-top: 48px; color: #444; }
-  @media print {
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    .no-print { display: none !important; }
-  }
-  .toolbar {
-    position: sticky; top: 0; background: #0f3d6e; color: #fff;
-    padding: 10px 14px; display: flex; gap: 10px; align-items: center;
-    justify-content: space-between; z-index: 10;
-  }
-  .toolbar button {
-    background: #fff; color: #0f3d6e; border: none; padding: 8px 14px;
-    border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 11pt;
-  }
+  body { margin: 0; font-family: "Segoe UI", system-ui, -apple-system, sans-serif; color: var(--ink); background: #f1f5f9; }
+  .toolbar { position: sticky; top: 0; z-index: 10; display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 10px 16px; background: #0f172a; color: #fff; }
+  .toolbar button { cursor: pointer; border: 0; border-radius: 8px; padding: 8px 14px; font-weight: 600; background: #14b8a6; color: #042f2e; }
   .toolbar button.secondary { background: transparent; color: #fff; border: 1px solid #fff; }
+  .sheet { max-width: 900px; margin: 16px auto 40px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 28px 32px; box-shadow: 0 8px 24px rgba(15,23,42,.06); }
+  .report-head { display: flex; justify-content: space-between; gap: 16px; border-bottom: 2px solid var(--brand); padding-bottom: 14px; margin-bottom: 18px; }
+  .brand { font-size: 12px; letter-spacing: .06em; color: var(--brand); font-weight: 700; text-transform: uppercase; }
+  .brand span { color: var(--muted); font-weight: 600; }
+  h1 { margin: 6px 0 4px; font-size: 20px; line-height: 1.3; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .meta-right { text-align: right; font-size: 12px; color: var(--muted); min-width: 140px; }
+  .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-weight: 700; font-size: 12px; }
+  .badge.pass { background: #dcfce7; color: var(--pass); }
+  .badge.fail { background: #fee2e2; color: var(--fail); }
+  .sec { margin: 18px 0; page-break-inside: avoid; }
+  .sec h2 { margin: 0 0 8px; font-size: 14px; color: var(--brand); border-left: 3px solid var(--brand); padding-left: 8px; }
+  table.kv { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.kv td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.kv td.k { width: 42%; color: var(--muted); }
+  table.kv td.v { font-weight: 600; }
+  table.data { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+  table.data th, table.data td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; }
+  table.data th { background: #f8fafc; }
+  ul.checks { margin: 8px 0 0; padding-left: 18px; font-size: 13px; }
+  ul.checks li.ok { color: var(--pass); }
+  ul.checks li.bad { color: var(--fail); }
+  p.note { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
+  .warn ul { margin: 6px 0 0; padding-left: 18px; font-size: 12px; color: #9a3412; }
+  .sign { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 28px; page-break-inside: avoid; }
+  .sign .box { border-top: 1px dashed var(--line); padding-top: 8px; text-align: center; font-size: 12px; color: var(--muted); min-height: 72px; }
+  .report-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 24px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff; }
+    .no-print { display: none !important; }
+    .sheet { margin: 0; border: 0; box-shadow: none; max-width: none; border-radius: 0; }
+  }
 </style>
 </head>
 <body>
@@ -192,17 +169,77 @@ export function buildReportHtml(doc: ReportDoc): string {
 </html>`;
 }
 
-/** Mở cửa sổ báo cáo chuyên nghiệp — người dùng In → Save as PDF */
-export function openReportPdf(doc: ReportDoc): void {
+/**
+ * Mở báo cáo để In → Lưu PDF.
+ * Không dùng windowFeatures "noopener" (trả về null → luôn báo chặn popup).
+ * Ưu tiên: tab mới (blob URL) → fallback tải HTML → iframe print.
+ */
+export function openReportPdf(doc: ReportDoc, filename = 'bao-cao-btct.html'): void {
   const html = buildReportHtml(doc);
-  const w = window.open('', '_blank', 'noopener,noreferrer,width=900,height=1000');
-  if (!w) {
-    alert('Trình duyệt chặn cửa sổ mới. Cho phép pop-up để xuất PDF.');
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+
+  // 1) Tab mới — mở blob URL (không cần document.write)
+  const w = window.open(url, '_blank');
+  if (w) {
+    try {
+      w.opener = null;
+    } catch {
+      /* ignore */
+    }
+    // Giữ blob đủ lâu để tab tải xong
+    window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
     return;
   }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
+
+  // 2) Fallback: tải file HTML (không bị chặn popup)
+  try {
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename.endsWith('.html') ? filename : `${filename}.html`;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    // 3) Thử in qua iframe ẩn (một số trình duyệt cho phép)
+    tryPrintInIframe(html);
+    alert(
+      'Trình duyệt chặn cửa sổ mới — đã tải file HTML báo cáo.\n' +
+        'Mở file vừa tải → bấm Ctrl+P (Cmd+P) → chọn «Save as PDF» / «Microsoft Print to PDF».'
+    );
+  } catch {
+    URL.revokeObjectURL(url);
+    alert('Không xuất được báo cáo. Thử tắt chặn popup cho trang này rồi bấm lại.');
+  }
+}
+
+function tryPrintInIframe(html: string): void {
+  try {
+    const iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none';
+    document.body.appendChild(iframe);
+    const idoc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!idoc) {
+      iframe.remove();
+      return;
+    }
+    idoc.open();
+    idoc.write(html);
+    idoc.close();
+    window.setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch {
+        /* ignore */
+      }
+      window.setTimeout(() => iframe.remove(), 2000);
+    }, 400);
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Tải file HTML báo cáo (có thể mở và in PDF offline) */
@@ -213,8 +250,11 @@ export function downloadReportHtml(doc: ReportDoc, filename: string): void {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename.endsWith('.html') ? filename : `${filename}.html`;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 const fmt = (v: number, d = 1) =>
@@ -228,13 +268,11 @@ export function beamReportDoc(
     L?: number;
     concrete: string;
     steel: string;
+    barsTop?: string;
+    barsBottom?: string;
     MNegative: number;
     MPositive: number;
     Q: number;
-    barsTop?: string;
-    barsBottom?: string;
-    AsTop: number;
-    AsBottom: number;
   },
   result: {
     pass: boolean;
@@ -244,10 +282,10 @@ export function beamReportDoc(
       qDemand: number;
       qbt: number;
       qResistance: number;
+      check: { pass: boolean; message: string };
       compressionCheck: { pass: boolean; message: string };
       resistanceCheck: { pass: boolean; message: string };
       spacingCheck: { pass: boolean; message: string };
-      check: { pass: boolean; message: string };
     };
     detailing: { pass: boolean; checks: { pass: boolean; message: string }[] };
     crack: {
@@ -276,7 +314,7 @@ export function beamReportDoc(
   return {
     meta: {
       title: 'BÁO CÁO TÍNH TOÁN DẦM BTCT',
-      subtitle: 'Uốn · Cắt · Cấu tạo · Nứt · Võng — theo engine V1.2 (đối chiếu Beam.xlsm)',
+      subtitle: 'Uốn · Cắt · Cấu tạo · Nứt · Võng — Dầm V1.2',
       itemName: beam.name,
       version: 'Dầm V1.2',
     },
@@ -287,38 +325,37 @@ export function beamReportDoc(
         rows: [
           { label: 'Tiết diện b × h', value: `${beam.b} × ${beam.h} mm` },
           { label: 'Nhịp L', value: beam.L ? `${beam.L} m` : '—' },
-          { label: 'Bê tông / thép', value: `${beam.concrete} / ${beam.steel}` },
           { label: 'M− / M+ ULS', value: `${fmt(beam.MNegative)} / ${fmt(beam.MPositive)} kNm` },
           { label: 'Q', value: `${fmt(beam.Q)} kN` },
-          { label: 'Thép trên / As', value: `${beam.barsTop || '—'} · ${fmt(beam.AsTop, 0)} mm²` },
-          { label: 'Thép dưới / As', value: `${beam.barsBottom || '—'} · ${fmt(beam.AsBottom, 0)} mm²` },
+          { label: 'Bê tông / thép', value: `${beam.concrete} / ${beam.steel}` },
+          { label: 'Thép trên / dưới', value: `${beam.barsTop || '—'} / ${beam.barsBottom || '—'}` },
         ],
       },
       {
-        heading: '2. Kiểm tra uốn M−',
+        heading: '2. Uốn M−',
         rows: [
           { label: 'ho', value: `${fmt(result.negative.ho)} mm` },
           { label: 'αm / ξ / ξR', value: `${fmt(result.negative.alphaM, 3)} / ${fmt(result.negative.xi, 3)} / ${fmt(result.negative.xiR, 3)}` },
-          { label: 'As yêu cầu / bố trí', value: `${fmt(result.negative.AsRequired, 0)} / ${fmt(result.negative.AsProvided, 0)} mm²` },
+          { label: 'As yc / bố trí', value: `${fmt(result.negative.AsRequired, 0)} / ${fmt(result.negative.AsProvided, 0)} mm²` },
         ],
         checks: [result.negative.check],
       },
       {
-        heading: '3. Kiểm tra uốn M+',
+        heading: '3. Uốn M+',
         rows: [
           { label: 'ho', value: `${fmt(result.positive.ho)} mm` },
           { label: 'αm / ξ / ξR', value: `${fmt(result.positive.alphaM, 3)} / ${fmt(result.positive.xi, 3)} / ${fmt(result.positive.xiR, 3)}` },
-          { label: 'As yêu cầu / bố trí', value: `${fmt(result.positive.AsRequired, 0)} / ${fmt(result.positive.AsProvided, 0)} mm²` },
+          { label: 'As yc / bố trí', value: `${fmt(result.positive.AsRequired, 0)} / ${fmt(result.positive.AsProvided, 0)} mm²` },
         ],
         checks: [result.positive.check],
       },
       {
-        heading: '4. Kiểm tra cắt',
+        heading: '4. Cắt',
         rows: [
           { label: 'Q / Qbt', value: `${fmt(result.shear.qDemand)} / ${fmt(result.shear.qbt)} kN` },
-          { label: 'Qb + Qsw', value: `${fmt(result.shear.qResistance)} kN` },
+          { label: 'Qb+Qsw', value: `${fmt(result.shear.qResistance)} kN` },
         ],
-        checks: [result.shear.compressionCheck, result.shear.resistanceCheck, result.shear.spacingCheck],
+        checks: [result.shear.check, result.shear.compressionCheck, result.shear.resistanceCheck, result.shear.spacingCheck],
       },
       {
         heading: '5. Cấu tạo',
@@ -331,31 +368,23 @@ export function beamReportDoc(
           { label: 'Trạng thái', value: result.crack.cracked ? 'Có nứt' : 'Không nứt' },
           {
             label: 'acrc ngắn / giới hạn',
-            value:
-              result.crack.acrcShort != null
-                ? `${fmt(result.crack.acrcShort, 3)} / ${result.crack.limitShort} mm`
-                : '—',
+            value: result.crack.acrcShort != null ? `${fmt(result.crack.acrcShort, 3)} / ${result.crack.limitShort} mm` : '—',
           },
           {
             label: 'acrc dài / giới hạn',
-            value:
-              result.crack.acrcLong != null
-                ? `${fmt(result.crack.acrcLong, 3)} / ${result.crack.limitLong} mm`
-                : '—',
+            value: result.crack.acrcLong != null ? `${fmt(result.crack.acrcLong, 3)} / ${result.crack.limitLong} mm` : '—',
           },
         ],
         checks: [result.crack.checkShort, result.crack.checkLong],
       },
       {
         heading: '7. Võng (ước lượng)',
-        rows: beam.L
-          ? [
-              { label: 'δ ngắn / giới hạn', value: `${fmt(result.deflection.deltaShort)} / ${fmt(result.deflection.limit)} mm` },
-              { label: 'δ dài / giới hạn', value: `${fmt(result.deflection.deltaLong)} / ${fmt(result.deflection.limit)} mm` },
-              { label: 'L/δ', value: `L/${result.deflection.limitRatio}` },
-            ]
-          : [{ label: 'Ghi chú', value: 'Chưa nhập nhịp L — không kiểm tra võng' }],
-        checks: beam.L ? [result.deflection.checkShort, result.deflection.checkLong] : undefined,
+        rows: [
+          { label: 'δ ngắn / giới hạn', value: `${fmt(result.deflection.deltaShort)} / ${fmt(result.deflection.limit)} mm` },
+          { label: 'δ dài / giới hạn', value: `${fmt(result.deflection.deltaLong)} / ${fmt(result.deflection.limit)} mm` },
+          { label: 'L/δ', value: `L/${result.deflection.limitRatio}` },
+        ],
+        checks: [result.deflection.checkShort, result.deflection.checkLong],
       },
       {
         heading: '8. Kết luận',
@@ -460,7 +489,7 @@ export function slabReportDoc(
   return {
     meta: {
       title: 'BÁO CÁO TÍNH TOÁN SÀN BTCT',
-      subtitle: 'Strip 1 m · Uốn · Cắt · Nứt · Võng — Sàn V1.1',
+      subtitle: 'Dải 1 m · Uốn · Cắt · Nứt · Võng — Sàn V1.1',
       itemName: slab.name,
       version: 'Sàn V1.1',
     },
@@ -479,8 +508,8 @@ export function slabReportDoc(
       {
         heading: '2. Kết quả',
         rows: [
-          { label: 'As− yc / bố trí', value: `${fmt(result.AsTopReq, 0)} / ${fmt(result.AsTopProv, 0)} mm²/m` },
-          { label: 'As+ yc / bố trí', value: `${fmt(result.AsBotReq, 0)} / ${fmt(result.AsBotProv, 0)} mm²/m` },
+          { label: 'As trên yc / bố trí', value: `${fmt(result.AsTopReq, 0)} / ${fmt(result.AsTopProv, 0)} mm²/m` },
+          { label: 'As dưới yc / bố trí', value: `${fmt(result.AsBotReq, 0)} / ${fmt(result.AsBotProv, 0)} mm²/m` },
         ],
         checks: [result.flexureTop, result.flexureBot, result.shear, result.crack, result.deflection],
       },
