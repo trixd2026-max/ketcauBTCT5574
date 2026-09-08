@@ -5,11 +5,12 @@ import { concretes, steels } from './engine/materials';
 import ColumnPanel from './modules/ColumnPanel';
 import SlabPanel from './modules/SlabPanel';
 import FoundationPanel from './modules/FoundationPanel';
+import ReportPanel from './modules/ReportPanel';
 import { openReportPdf, beamReportDoc } from './report/reportPdf';
 import { beamThuyetMinhDoc } from './report/thuyetMinhBeam';
 import { exportBeamExcel } from './report/excelReport';
 
-type ModuleId = 'beam' | 'column' | 'slab' | 'foundation';
+type ModuleId = 'beam' | 'column' | 'slab' | 'foundation' | 'report';
 
 const STORAGE_KEY = 'ketcau-btct-5574-beams-v1';
 const numberKeys = new Set<string>([
@@ -194,13 +195,14 @@ export default function App() {
     <div className="app">
       <aside>
         <div className="brand">BTCT <span>5574</span></div>
-        <p className="muted">V1.3 · DẦM · CỘT · SÀN · MÓNG</p>
+        <p className="muted">V1.3 · DẦM · CỘT · SÀN · MÓNG · BÁO CÁO</p>
         <button type="button" className={`nav ${module === 'beam' ? 'active' : ''}`} onClick={() => setModule('beam')}>▣&nbsp; Dầm BTCT</button>
         <button type="button" className={`nav ${module === 'column' ? 'active' : ''}`} onClick={() => setModule('column')}>▣&nbsp; Cột BTCT</button>
         <button type="button" className={`nav ${module === 'slab' ? 'active' : ''}`} onClick={() => setModule('slab')}>▣&nbsp; Sàn BTCT</button>
         <button type="button" className={`nav ${module === 'foundation' ? 'active' : ''}`} onClick={() => setModule('foundation')}>▣&nbsp; Móng BTCT</button>
+        <button type="button" className={`nav ${module === 'report' ? 'active' : ''}`} onClick={() => setModule('report')}>▣&nbsp; Báo cáo</button>
         <div className="sidefoot">
-          V1.3 · Dầm · Cột · Sàn · Móng<br />
+          V1.3 · Dầm · Cột · Sàn · Móng · Báo cáo<br />
           N–M / strip gần đúng<br />
           Chưa khóa chuẩn TCVN
         </div>
@@ -209,6 +211,7 @@ export default function App() {
         {module === 'column' && <ColumnPanel />}
         {module === 'slab' && <SlabPanel />}
         {module === 'foundation' && <FoundationPanel />}
+        {module === 'report' && <ReportPanel />}
         {module === 'beam' && (
         <>
         <header>
