@@ -3,6 +3,7 @@ import { calcColumn, createDefaultColumn, parseColumnBars, type ColumnInput } fr
 import { concretes, steels } from '../engine/materials';
 import { openReportPdf, columnReportDoc } from '../report/reportPdf';
 import { exportGenericExcel } from '../report/excelReport';
+import { exportReportWord } from '../report/wordReport';
 
 const STORAGE = 'ketcau-btct-5574-columns-v1';
 const fmt = (v: number, d = 1) =>
@@ -142,11 +143,14 @@ export default function ColumnPanel() {
           <button type="button" className="primary" onClick={() => openReportPdf(columnReportDoc(selected, result))}>
             Xuất PDF
           </button>
+          <button type="button" onClick={() => void exportReportWord(columnReportDoc(selected, result), `Cot-${selected.name || 'BTCT'}.docx`)}>
+            Word
+          </button>
         </div>
       </header>
 
       <section className="notice">
-        <b>Cột:</b> N–M gần đúng. Thép <code>8d20</code> → As khóa. Danh sách + Excel / PDF.
+        <b>Cột:</b> N–M gần đúng. Thép <code>8d20</code> → As khóa. Danh sách + Excel / PDF / Word.
       </section>
 
       <div className="workspace">
