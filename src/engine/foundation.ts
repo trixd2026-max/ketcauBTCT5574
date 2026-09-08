@@ -1,13 +1,14 @@
 /**
- * Móng đơn BTCT — bám MongDon.xlsm (Design_MongDon_ALL):
- *   p = N/Af ± |Mx|/Wx ± |My|/Wy + γ·Df + pg
- *   Nct = p_max · Act ;  Nkt = 0.75 · Rbt · um · h0 · 1000
- *   Wx = Lx·Ly²/6 ; Wy = Ly·Lx²/6
+ * Móng đơn BTCT — bám MongDon.xlsm (Design_MongDon_ALL).
  *
- * N, Mx, My: lực/moment tại đáy móng (ΣN, ΣMx, ΣMy đã quy đổi —
- *   ΣN = FZ + Htn·γ·Af ; ΣMx = MX − FY·Hf − FZ·ey ; …).
- * Cột giả định tâm (console đều). Lệch tâm cột: nhập cx1/cx2/cy1/cy2.
- * Chưa khẳng định tuân thủ đầy đủ TCVN 5574:2018.
+ * Áp lực đáy:
+ *   ΣN = FZ + Htn·γ'·Af   (khi Htn>0; nếu Htn=0 thì N dùng trực tiếp)
+ *   p  = ΣN/Af ± |Mx|/Wx ± |My|/Wy + γ·Df + pg
+ *
+ * Rtc (áp lực tiêu chuẩn đất nền) — công thức MongDon:
+ *   A,B,D theo φ; γb theo ZWT; Rtc=(m1·m2/k)·(A·b·γb + B·Df·γ' + D·c − γ·h0)
+ *
+ * Tham chiếu TCVN 5574:2018 (BTCT) + nền theo MongDon — không chứng nhận full compliance toàn mã.
  */
 import { getConcrete, getSteel } from './materials';
 
@@ -31,22 +32,43 @@ export type FoundationInput = {
   barsY?: string;
   gammaFill?: number;
   pg?: number;
-  /** Console mép cột→mép móng (m). Bỏ trống = cột tâm. */
+  Htn?: number;
   cx1?: number;
   cx2?: number;
   cy1?: number;
   cy2?: number;
+  rtcMode?: 'manual' | 'calc';
+  phi?: number;
+  cII?: number;
+  gammaII?: number;
+  gammaPrime?: number;
+  m1?: number;
+  m2?: number;
+  k?: number;
+  zwt?: number;
+  h0Basement?: number;
 };
 
 export type Check = { pass: boolean; message: string };
+
+export type BearingFactors = {
+  A: number;
+  B: number;
+  D: number;
+  gammaB: number;
+  rtcCalc: number;
+};
 
 export type FoundationResult = {
   Af: number;
   Wx: number;
   Wy: number;
+  sigmaN: number;
   pAvg: number;
   pMax: number;
   pMin: number;
+  rtcUsed: number;
+  bearing?: BearingFactors;
   soilAvg: Check;
   soilMax: Check;
   soilMin: Check;
@@ -76,6 +98,47 @@ export function parseFoundationBars(spec: string): { As: number; dia: number; sp
   return { As: Math.round(As * 10) / 10, dia, spacing, ok: true };
 }
 
+export function bearingCapacityFactors(phiDeg: number): { A: number; B: number; D: number } {
+  const phi = (Math.max(phiDeg, 0.1) * Math.PI) / 180;
+  const cot = 1 / Math.tan(phi);
+  const den = cot + phi - Math.PI / 2;
+  if (Math.abs(den) < 1e-12) return { A: 0, B: 1, D: 0 };
+  const A = Math.round((0.25 * Math.PI) / den * 1000) / 1000;
+  const B = Math.round((1 + Math.PI / den) * 1000) / 1000;
+  const D = Math.round((Math.PI * cot) / den * 1000) / 1000;
+  return { A, B, D };
+}
+
+export function calcRtc(input: {
+  Lx: number;
+  Ly: number;
+  Df: number;
+  phi: number;
+  cII: number;
+  gammaII: number;
+  gammaPrime: number;
+  m1: number;
+  m2: number;
+  k: number;
+  zwt: number;
+  h0Basement: number;
+}): BearingFactors {
+  const { A, B, D } = bearingCapacityFactors(input.phi);
+  const b = Math.min(Math.max(input.Lx, 0.1), Math.max(input.Ly, 0.1));
+  let gammaB = input.gammaII;
+  if (input.zwt > 0) {
+    gammaB = input.Df > input.zwt ? input.gammaII - 10 : input.gammaII;
+  }
+  const inner =
+    A * b * gammaB +
+    B * input.Df * input.gammaPrime +
+    D * input.cII -
+    input.gammaII * input.h0Basement;
+  const factor = (input.m1 * input.m2) / Math.max(input.k, 1e-6);
+  const rtcCalc = factor * inner;
+  return { A, B, D, gammaB, rtcCalc };
+}
+
 export function calcFoundation(input: FoundationInput): FoundationResult {
   const warnings: string[] = [];
   const Lx = Math.max(input.Lx, 0.1);
@@ -84,13 +147,13 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
   const Df = Math.max(input.Df, 0);
   const colB = Math.max(input.colB, 0.1);
   const colH = Math.max(input.colH, 0.1);
-  const N = input.N;
   const Mx = Math.abs(input.Mx);
   const My = Math.abs(input.My);
-  const Rtc = Math.max(input.Rtc, 1);
   const a_mm = input.a > 0 ? input.a : 50;
-  const gamma = input.gammaFill ?? 20;
+  const gammaFill = input.gammaFill ?? 20;
+  const gammaPrime = input.gammaPrime ?? gammaFill;
   const pg = input.pg ?? 0;
+  const Htn = Math.max(input.Htn ?? 0, 0);
 
   const concrete = getConcrete(input.concrete);
   const steel = getSteel(input.steel);
@@ -101,24 +164,52 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
   const Wx = (Lx * Ly * Ly) / 6;
   const Wy = (Ly * Lx * Lx) / 6;
 
-  const selfW = gamma * Df + pg;
-  const pAvg = N / Af + selfW;
-  const pMax = N / Af + Mx / Wx + My / Wy + selfW;
-  const pMin = N / Af - Mx / Wx - My / Wy + selfW;
+  const Fz = input.N;
+  const sigmaN = Htn > 0 ? Fz + Htn * gammaPrime * Af : Fz;
 
-  const soilAvg = check(pAvg <= Rtc + 1e-6, `p_tb=${pAvg.toFixed(1)} ${pAvg <= Rtc ? '≤' : '>'} Rtc=${Rtc}`);
-  const soilMax = check(pMax <= 1.2 * Rtc + 1e-6, `p_max=${pMax.toFixed(1)} ${pMax <= 1.2 * Rtc ? '≤' : '>'} 1.2Rtc=${(1.2 * Rtc).toFixed(1)}`);
+  const selfW = gammaFill * Df + pg;
+  const pAvg = sigmaN / Af + selfW;
+  const pMax = sigmaN / Af + Mx / Wx + My / Wy + selfW;
+  const pMin = sigmaN / Af - Mx / Wx - My / Wy + selfW;
+
+  const rtcMode = input.rtcMode ?? 'manual';
+  let bearing: BearingFactors | undefined;
+  let rtcUsed = Math.max(input.Rtc, 1);
+  if (rtcMode === 'calc') {
+    bearing = calcRtc({
+      Lx,
+      Ly,
+      Df,
+      phi: input.phi ?? 12,
+      cII: input.cII ?? 19.5,
+      gammaII: input.gammaII ?? 19.1,
+      gammaPrime,
+      m1: input.m1 ?? 1.1,
+      m2: input.m2 ?? 1,
+      k: input.k ?? 1.1,
+      zwt: input.zwt ?? 1,
+      h0Basement: input.h0Basement ?? 0,
+    });
+    rtcUsed = Math.max(bearing.rtcCalc, 1);
+  }
+
+  const soilAvg = check(
+    pAvg <= rtcUsed + 1e-6,
+    `p_tb=${pAvg.toFixed(1)} ${pAvg <= rtcUsed ? '≤' : '>'} Rtc=${rtcUsed.toFixed(1)}`
+  );
+  const soilMax = check(
+    pMax <= 1.2 * rtcUsed + 1e-6,
+    `p_max=${pMax.toFixed(1)} ${pMax <= 1.2 * rtcUsed ? '≤' : '>'} 1.2Rtc=${(1.2 * rtcUsed).toFixed(1)}`
+  );
   const soilMin = check(pMin >= -1e-6, `p_min=${pMin.toFixed(1)} ${pMin >= 0 ? '≥' : '<'} 0 (không nhổ)`);
 
   const ho = Math.max(Hf - a_mm / 1000, 0.05);
 
-  // Console: ưu tiên nhập cx/cy (MongDon); mặc định cột tâm
   const cx1 = input.cx1 != null ? Math.max(input.cx1, 0) : Math.max((Lx - colB) / 2, 0);
   const cx2 = input.cx2 != null ? Math.max(input.cx2, 0) : cx1;
   const cy1 = input.cy1 != null ? Math.max(input.cy1, 0) : Math.max((Ly - colH) / 2, 0);
   const cy2 = input.cy2 != null ? Math.max(input.cy2, 0) : cy1;
 
-  // MongDon um1 / Act
   const mcx1 = Math.min(cx1, ho);
   const mcx2 = Math.min(cx2, ho);
   const mcy1 = Math.min(cy1, ho);
@@ -140,9 +231,8 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
     ho,
   };
 
-  const MxConsole = Math.max(pMax, 0) * (Math.max(cx1, cx2) * Math.max(cx1, cx2)) / 2;
-  const MyConsole = Math.max(pMax, 0) * (Math.max(cy1, cy2) * Math.max(cy1, cy2)) / 2;
-
+  const MxConsole = (Math.max(pMax, 0) * Math.max(cx1, cx2) ** 2) / 2;
+  const MyConsole = (Math.max(pMax, 0) * Math.max(cy1, cy2) ** 2) / 2;
   const zeta = 0.9;
   const AsXFromM = Rs > 0 && ho > 0 ? (MxConsole * 1e6) / (Rs * zeta * ho * 1000) : 0;
   const AsYFromM = Rs > 0 && ho > 0 ? (MyConsole * 1e6) / (Rs * zeta * ho * 1000) : 0;
@@ -158,7 +248,8 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
   if (!px.ok) warnings.push('Chưa nhập thép phương X hợp lệ (vd d12a150).');
   if (!py.ok) warnings.push('Chưa nhập thép phương Y hợp lệ (vd d12a150).');
   if (Math.max(cx1, cx2) < 0.05) warnings.push('Console X rất nhỏ — kiểm tra kích thước móng/cột.');
-  if (pMin < 0) warnings.push('p_min < 0: có nguy cơ nhổ góc móng — cần xem xét tổ hợp / tăng kích thước.');
+  if (pMin < 0) warnings.push('p_min < 0: có nguy cơ nhổ góc móng.');
+  if (Htn > 0) warnings.push(`ΣN = FZ(${Fz.toFixed(1)}) + Htn·γ'·Af = ${sigmaN.toFixed(1)} kN`);
 
   const flexureX = check(
     AsXProv + 1e-6 >= AsXReq,
@@ -173,7 +264,7 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
     soilAvg.pass && soilMax.pass && soilMin.pass && punching.pass && flexureX.pass && flexureY.pass;
 
   return {
-    Af, Wx, Wy, pAvg, pMax, pMin,
+    Af, Wx, Wy, sigmaN, pAvg, pMax, pMin, rtcUsed, bearing,
     soilAvg, soilMax, soilMin, punching, flexureX, flexureY,
     AsXReq, AsXProv, AsYReq, AsYProv, AsXMin: AsMin, AsYMin: AsMin,
     pass, warnings,
@@ -200,4 +291,15 @@ export const createDefaultFoundation = (id: string = crypto.randomUUID()): Found
   barsY: 'd12a150',
   gammaFill: 20,
   pg: 0,
+  Htn: 0,
+  rtcMode: 'manual',
+  phi: 12,
+  cII: 19.5,
+  gammaII: 19.1,
+  gammaPrime: 20,
+  m1: 1.1,
+  m2: 1,
+  k: 1.1,
+  zwt: 1,
+  h0Basement: 0,
 });
