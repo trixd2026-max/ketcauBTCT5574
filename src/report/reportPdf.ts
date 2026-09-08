@@ -1,6 +1,5 @@
 /**
  * Báo cáo PDF chuyên nghiệp — HTML → xem trước overlay → In/Lưu PDF.
- * Không phụ thuộc jsPDF; tiếng Việt đầy đủ qua HTML.
  */
 import { openHtmlReport, PRINT_PAGE_CSS } from './openHtmlReport';
 
@@ -74,12 +73,14 @@ export function buildReportHtml(doc: ReportDoc): string {
     })
     .join('');
 
-  const warningsHtml =
-    doc.warnings && doc.warnings.length
-      ? `<section class="sec warn"><h2>Cảnh báo / ghi chú</h2><ul>${doc.warnings
-          .map((w) => `<li>${esc(w)}</li>`)
-          .join('')}</ul></section>`
-      : '';
+  const warnList = (doc.warnings || []).filter(
+    (w) => !/chưa khẳng định|Hỗ trợ thiết kế|full compliance|chứng nhận full/i.test(w)
+  );
+  const warningsHtml = warnList.length
+    ? `<section class="sec warn"><h2>Cảnh báo / ghi chú</h2><ul>${warnList
+        .map((w) => `<li>${esc(w)}</li>`)
+        .join('')}</ul></section>`
+    : '';
 
   return `<!DOCTYPE html>
 <html lang="vi">
@@ -96,8 +97,6 @@ export function buildReportHtml(doc: ReportDoc): string {
   .toolbar button.secondary { background: transparent; color: #fff; border: 1px solid #fff; }
   .sheet { max-width: 900px; margin: 16px auto 40px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 28px 32px; box-shadow: 0 8px 24px rgba(15,23,42,.06); }
   .report-head { display: flex; justify-content: space-between; gap: 16px; border-bottom: 2px solid var(--brand); padding-bottom: 14px; margin-bottom: 18px; }
-  .brand { font-size: 12px; letter-spacing: .06em; color: var(--brand); font-weight: 700; text-transform: uppercase; }
-  .brand span { color: var(--muted); font-weight: 600; }
   h1 { margin: 6px 0 4px; font-size: 20px; line-height: 1.3; }
   .sub { color: var(--muted); font-size: 13px; }
   .meta-right { text-align: right; font-size: 12px; color: var(--muted); min-width: 140px; }
@@ -135,7 +134,6 @@ export function buildReportHtml(doc: ReportDoc): string {
   <div class="sheet">
     <header class="report-head">
       <div>
-        <div class="brand">BTCT 5574 <span>${esc(doc.meta.version || 'V1.3')}</span></div>
         <h1>${esc(doc.meta.title)}</h1>
         <div class="sub">${esc(doc.meta.subtitle || '')}</div>
         <div class="sub">Hạng mục: <b>${esc(doc.meta.itemName || '—')}</b>
@@ -158,20 +156,18 @@ export function buildReportHtml(doc: ReportDoc): string {
     </div>
 
     <footer class="report-foot">
-      <span>${esc(doc.footerNote || 'Báo cáo tính toán BTCT — chưa khẳng định tuân thủ đầy đủ TCVN 5574:2018 cho đến khi golden cases được đối chiếu.')}</span>
-      <span>tinhketcaubtct2018</span>
+      <span>${esc(doc.footerNote || '')}</span>
+      <span></span>
     </footer>
   </div>
 </body>
 </html>`;
 }
 
-/** Mở báo cáo: overlay xem trước trong trang → In/Lưu PDF (không phụ thuộc popup). */
 export function openReportPdf(doc: ReportDoc, filename = 'bao-cao-btct.html'): void {
   openHtmlReport(buildReportHtml(doc), filename);
 }
 
-/** Tải file HTML báo cáo (có thể mở và in PDF offline) */
 export function downloadReportHtml(doc: ReportDoc, filename: string): void {
   const html = buildReportHtml(doc);
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
@@ -191,26 +187,15 @@ const fmt = (v: number, d = 1) =>
 
 export function beamReportDoc(
   beam: {
-    name: string;
-    b: number;
-    h: number;
-    L?: number;
-    concrete: string;
-    steel: string;
-    barsTop?: string;
-    barsBottom?: string;
-    MNegative: number;
-    MPositive: number;
-    Q: number;
+    name: string; b: number; h: number; L?: number; concrete: string; steel: string;
+    barsTop?: string; barsBottom?: string; MNegative: number; MPositive: number; Q: number;
   },
   result: {
     pass: boolean;
     negative: { ho: number; alphaM: number; xi: number; xiR: number; AsRequired: number; AsProvided: number; check: { pass: boolean; message: string } };
     positive: { ho: number; alphaM: number; xi: number; xiR: number; AsRequired: number; AsProvided: number; check: { pass: boolean; message: string } };
     shear: {
-      qDemand: number;
-      qbt: number;
-      qResistance: number;
+      qDemand: number; qbt: number; qResistance: number;
       check: { pass: boolean; message: string };
       compressionCheck: { pass: boolean; message: string };
       resistanceCheck: { pass: boolean; message: string };
@@ -218,36 +203,26 @@ export function beamReportDoc(
     };
     detailing: { pass: boolean; checks: { pass: boolean; message: string }[] };
     crack: {
-      pass: boolean;
-      Mcrc: number;
-      cracked: boolean;
-      acrcShort: number | null;
-      acrcLong: number | null;
-      limitShort: number;
-      limitLong: number;
-      checkShort: { pass: boolean; message: string };
-      checkLong: { pass: boolean; message: string };
+      pass: boolean; Mcrc: number; cracked: boolean;
+      acrcShort: number | null; acrcLong: number | null; limitShort: number; limitLong: number;
+      checkShort: { pass: boolean; message: string }; checkLong: { pass: boolean; message: string };
     };
     deflection: {
-      pass: boolean;
-      deltaShort: number;
-      deltaLong: number;
-      limit: number;
-      limitRatio: number;
-      checkShort: { pass: boolean; message: string };
-      checkLong: { pass: boolean; message: string };
+      pass: boolean; deltaShort: number; deltaLong: number; limit: number; limitRatio: number;
+      checkShort: { pass: boolean; message: string }; checkLong: { pass: boolean; message: string };
     };
     warnings: string[];
   }
 ): ReportDoc {
   return {
     meta: {
-      title: 'BÁO CÁO TÍNH TOÁN DẦM BTCT',
-      subtitle: 'Uốn · Cắt · Cấu tạo · Nứt · Võng — Dầm V1.2',
+      title: 'THUYẾT MINH TÍNH TOÁN DẦM BÊ TÔNG CỐT THÉP',
+      subtitle: 'Uốn · Cắt · Cấu tạo · Nứt · Võng',
       itemName: beam.name,
-      version: 'Dầm V1.2',
+      version: '',
     },
     overallPass: result.pass,
+    footerNote: '',
     sections: [
       {
         heading: '1. Thông số đầu vào',
@@ -286,10 +261,7 @@ export function beamReportDoc(
         ],
         checks: [result.shear.check, result.shear.compressionCheck, result.shear.resistanceCheck, result.shear.spacingCheck],
       },
-      {
-        heading: '5. Cấu tạo',
-        checks: result.detailing.checks,
-      },
+      { heading: '5. Cấu tạo', checks: result.detailing.checks },
       {
         heading: '6. Nứt (SLS)',
         rows: [
@@ -307,7 +279,7 @@ export function beamReportDoc(
         checks: [result.crack.checkShort, result.crack.checkLong],
       },
       {
-        heading: '7. Võng (ước lượng)',
+        heading: '7. Võng',
         rows: [
           { label: 'δ ngắn / giới hạn', value: `${fmt(result.deflection.deltaShort)} / ${fmt(result.deflection.limit)} mm` },
           { label: 'δ dài / giới hạn', value: `${fmt(result.deflection.deltaLong)} / ${fmt(result.deflection.limit)} mm` },
@@ -326,24 +298,11 @@ export function beamReportDoc(
 
 export function columnReportDoc(
   col: {
-    name: string;
-    b: number;
-    h: number;
-    L0x: number;
-    L0y: number;
-    N: number;
-    Mx: number;
-    My: number;
-    concrete: string;
-    steel: string;
-    bars?: string;
+    name: string; b: number; h: number; L0x: number; L0y: number;
+    N: number; Mx: number; My: number; concrete: string; steel: string; bars?: string;
   },
   result: {
-    pass: boolean;
-    mu: number;
-    lambdaMax: number;
-    vd: number;
-    interaction: number;
+    pass: boolean; mu: number; lambdaMax: number; vd: number; interaction: number;
     checks: Record<string, { pass: boolean; message: string }>;
     shearX: { check: { pass: boolean; message: string } };
     shearY: { check: { pass: boolean; message: string } };
@@ -352,12 +311,13 @@ export function columnReportDoc(
 ): ReportDoc {
   return {
     meta: {
-      title: 'BÁO CÁO TÍNH TOÁN CỘT BTCT',
-      subtitle: 'Độ mảnh · N–M (gần đúng) · Đai — Column V1.2',
+      title: 'THUYẾT MINH TÍNH TOÁN CỘT BÊ TÔNG CỐT THÉP',
+      subtitle: 'Độ mảnh · N–M · Đai',
       itemName: col.name,
-      version: 'Cột V1.2',
+      version: '',
     },
     overallPass: result.pass,
+    footerNote: '',
     sections: [
       {
         heading: '1. Thông số đầu vào',
@@ -373,14 +333,13 @@ export function columnReportDoc(
         heading: '2. Kết quả kiểm tra',
         rows: [
           { label: 'μ / λmax / vd', value: `${fmt(result.mu, 3)}% / ${fmt(result.lambdaMax, 1)} / ${fmt(result.vd, 3)}` },
-          { label: 'Hệ số N–M (gần đúng)', value: fmt(result.interaction, 3) },
+          { label: 'Hệ số N–M', value: fmt(result.interaction, 3) },
         ],
         checks: [...Object.values(result.checks), result.shearX.check, result.shearY.check],
       },
       {
         heading: '3. Kết luận',
         rows: [{ label: 'Kết luận tổng hợp', value: result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT' }],
-        note: 'Biểu đồ tương tác N–M là gần đúng — không thay thế macro VBA trong Column.xlsm.',
       },
     ],
     warnings: result.warnings?.slice(0, 12),
@@ -389,24 +348,11 @@ export function columnReportDoc(
 
 export function slabReportDoc(
   slab: {
-    name: string;
-    h: number;
-    Lx: number;
-    Ly: number;
-    Mtop: number;
-    Mbot: number;
-    Q: number;
-    concrete: string;
-    steel: string;
-    barsTop?: string;
-    barsBottom?: string;
+    name: string; h: number; Lx: number; Ly: number; Mtop: number; Mbot: number; Q: number;
+    concrete: string; steel: string; barsTop?: string; barsBottom?: string;
   },
   result: {
-    pass: boolean;
-    AsTopReq: number;
-    AsTopProv: number;
-    AsBotReq: number;
-    AsBotProv: number;
+    pass: boolean; AsTopReq: number; AsTopProv: number; AsBotReq: number; AsBotProv: number;
     flexureTop: { pass: boolean; message: string };
     flexureBot: { pass: boolean; message: string };
     shear: { pass: boolean; message: string };
@@ -417,12 +363,13 @@ export function slabReportDoc(
 ): ReportDoc {
   return {
     meta: {
-      title: 'BÁO CÁO TÍNH TOÁN SÀN BTCT',
-      subtitle: 'Dải 1 m · Uốn · Cắt · Nứt · Võng — Sàn V1.1',
+      title: 'THUYẾT MINH TÍNH TOÁN SÀN BÊ TÔNG CỐT THÉP',
+      subtitle: 'Uốn · Cắt · Nứt · Võng',
       itemName: slab.name,
-      version: 'Sàn V1.1',
+      version: '',
     },
     overallPass: result.pass,
+    footerNote: '',
     sections: [
       {
         heading: '1. Thông số đầu vào',
@@ -457,29 +404,13 @@ export function slabReportDoc(
 
 export function foundationReportDoc(
   f: {
-    name: string;
-    Lx: number;
-    Ly: number;
-    Hf: number;
-    Df: number;
-    N: number;
-    Mx: number;
-    My: number;
-    Rtc: number;
-    concrete: string;
-    steel: string;
-    barsX?: string;
-    barsY?: string;
+    name: string; Lx: number; Ly: number; Hf: number; Df: number;
+    N: number; Mx: number; My: number; Rtc: number; concrete: string; steel: string;
+    barsX?: string; barsY?: string;
   },
   result: {
-    pass: boolean;
-    sigmaN: number;
-    sigmaMx?: number;
-    sigmaMy?: number;
-    pAvg: number;
-    pMax: number;
-    pMin: number;
-    rtcUsed: number;
+    pass: boolean; sigmaN: number; sigmaMx?: number; sigmaMy?: number;
+    pAvg: number; pMax: number; pMin: number; rtcUsed: number;
     soilAvg: { pass: boolean; message: string };
     soilMax: { pass: boolean; message: string };
     soilMin: { pass: boolean; message: string };
@@ -491,12 +422,13 @@ export function foundationReportDoc(
 ): ReportDoc {
   return {
     meta: {
-      title: 'BÁO CÁO TÍNH TOÁN MÓNG ĐƠN BTCT',
-      subtitle: 'Nền · Chọc thủng · Uốn console — Móng V1.2',
+      title: 'THUYẾT MINH TÍNH TOÁN MÓNG ĐƠN BÊ TÔNG CỐT THÉP',
+      subtitle: 'Nền · Chọc thủng · Uốn console',
       itemName: f.name,
-      version: 'Móng V1.2',
+      version: '',
     },
     overallPass: result.pass,
+    footerNote: '',
     sections: [
       {
         heading: '1. Thông số đầu vào',
@@ -504,7 +436,7 @@ export function foundationReportDoc(
           { label: 'Lx × Ly × Hf', value: `${f.Lx} × ${f.Ly} × ${f.Hf} m` },
           { label: 'Df', value: `${f.Df} m` },
           { label: 'FZ / Mx / My', value: `${fmt(f.N)} kN / ${fmt(f.Mx)} / ${fmt(f.My)} kNm` },
-          { label: 'Rtc nhập', value: `${fmt(f.Rtc)} kN/m²` },
+          { label: 'Rtc', value: `${fmt(f.Rtc)} kN/m²` },
           { label: 'Bê tông / thép', value: `${f.concrete} / ${f.steel}` },
           { label: 'Thép X / Y', value: `${f.barsX || '—'} / ${f.barsY || '—'}` },
         ],
@@ -527,15 +459,10 @@ export function foundationReportDoc(
       },
       {
         heading: '3. Chọc thủng',
-        rows: [
-          { label: 'Nct / Nkt', value: `${fmt(result.punching.Nct)} / ${fmt(result.punching.Nkt)} kN` },
-        ],
+        rows: [{ label: 'Nct / Nkt', value: `${fmt(result.punching.Nct)} / ${fmt(result.punching.Nkt)} kN` }],
         checks: [result.punching],
       },
-      {
-        heading: '4. Uốn console',
-        checks: [result.flexureX, result.flexureY],
-      },
+      { heading: '4. Uốn console', checks: [result.flexureX, result.flexureY] },
       {
         heading: '5. Kết luận',
         rows: [{ label: 'Kết luận tổng hợp', value: result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT' }],
