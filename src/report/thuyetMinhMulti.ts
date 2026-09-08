@@ -1,19 +1,20 @@
 /**
- * Thuyết minh PDF đa cấu kiện — Cột · Sàn · Móng.
+ * Thuyết minh PDF đa cấu kiện — Cột / Sàn / Móng.
  */
-import type { ProjectMeta } from './excelReport';
 import type { ColumnInput, ColumnResult } from '../engine/column';
 import type { SlabInput, SlabResult } from '../engine/slab';
 import type { FoundationInput, FoundationResult } from '../engine/foundation';
 import type { ReportDoc } from './reportPdf';
+import type { ProjectMeta } from './excelReport';
 
 const fmt = (v: number, d = 1) =>
-  Number.isFinite(v) ? v.toLocaleString('vi-VN', { maximumFractionDigits: d, minimumFractionDigits: 0 }) : '—';
+  Number.isFinite(v) ? v.toLocaleString('vi-VN', { maximumFractionDigits: d }) : '—';
 
 const defaultMeta = (meta?: ProjectMeta) => ({
   projectName: meta?.projectName || 'Dự án mẫu',
   designer: meta?.designer || 'KS. Thiết kế',
-  standard: meta?.standard || 'TCVN 5574:2018 (tham chiếu)',
+  date: meta?.date || new Date().toLocaleDateString('vi-VN'),
+  standard: meta?.standard || 'TCVN 5574:2018',
 });
 
 export function columnThuyetMinhDoc(
@@ -27,7 +28,7 @@ export function columnThuyetMinhDoc(
       title: 'THUYẾT MINH TÍNH TOÁN CỘT BÊ TÔNG CỐT THÉP',
       subtitle: `${m.projectName} · ${m.designer} · ${m.standard}`,
       itemName: `${items.length} cột · ${passN}/${items.length} ĐẠT`,
-      version: 'Cột V1.1 · TM đa cấu kiện',
+      version: '',
     },
     overallPass: items.length > 0 && passN === items.length,
     sections: [
@@ -36,7 +37,7 @@ export function columnThuyetMinhDoc(
         rows: [
           { label: 'Số cột', value: String(items.length) },
           { label: 'ĐẠT / Tổng', value: `${passN} / ${items.length}` },
-          { label: 'Ghi chú', value: 'N–M gần đúng — không thay macro VBA Column.xlsm' },
+          { label: 'Ghi chú', value: 'N–M gần đúng' },
         ],
       },
       {
@@ -60,7 +61,7 @@ export function columnThuyetMinhDoc(
         },
       ]),
     ],
-    footerNote: 'Hỗ trợ thiết kế. Chưa khẳng định tuân thủ đầy đủ TCVN 5574:2018.',
+    footerNote: '',
     warnings: items.flatMap((x) => x.result.warnings).slice(0, 20),
   };
 }
@@ -76,7 +77,7 @@ export function slabThuyetMinhDoc(
       title: 'THUYẾT MINH TÍNH TOÁN SÀN BÊ TÔNG CỐT THÉP',
       subtitle: `${m.projectName} · ${m.designer} · ${m.standard}`,
       itemName: `${items.length} sàn · ${passN}/${items.length} ĐẠT`,
-      version: 'Sàn V1.1 · TM đa · dải 1 m',
+      version: '',
     },
     overallPass: items.length > 0 && passN === items.length,
     sections: [
@@ -91,23 +92,22 @@ export function slabThuyetMinhDoc(
         heading: '1. Bảng tổng hợp',
         rows: items.map(({ slab, result: r }) => ({
           label: slab.name,
-          value: `h=${slab.h} · ${slab.Lx}×${slab.Ly}m · ${r.pass ? 'ĐẠT' : 'KĐ'}`,
+          value: `h=${slab.h} · ${slab.Lx}×${slab.Ly} · ${r.pass ? 'ĐẠT' : 'KĐ'}`,
         })),
       },
-      ...items.map(({ slab, result: r }, i) => ({
-        heading: `${i + 2}. ${slab.name}`,
-        rows: [
-          { label: 'h / Lx×Ly', value: `${slab.h} mm / ${slab.Lx}×${slab.Ly} m` },
-          { label: 'M− / M+ / Q', value: `${fmt(slab.Mtop)} / ${fmt(slab.Mbot)} / ${fmt(slab.Q)}` },
-          { label: 'Thép trên / dưới', value: `${slab.barsTop || '—'} / ${slab.barsBottom || '—'}` },
-          { label: 'As trên yc/bt', value: `${fmt(r.AsTopReq, 0)} / ${fmt(r.AsTopProv, 0)}` },
-          { label: 'As dưới yc/bt', value: `${fmt(r.AsBotReq, 0)} / ${fmt(r.AsBotProv, 0)}` },
-          { label: 'Kết luận', value: r.pass ? 'ĐẠT' : 'KHÔNG ĐẠT' },
-        ],
-        checks: [r.flexureTop, r.flexureBot, r.shear, r.crack, r.deflection],
-      })),
+      ...items.flatMap(({ slab, result: r }, i) => [
+        {
+          heading: `${i + 2}. ${slab.name}`,
+          rows: [
+            { label: 'h / Lx×Ly', value: `${slab.h} mm · ${slab.Lx}×${slab.Ly} m` },
+            { label: 'Thép trên / dưới', value: `${slab.barsTop || '—'} / ${slab.barsBottom || '—'}` },
+            { label: 'Kết luận', value: r.pass ? 'ĐẠT' : 'KHÔNG ĐẠT' },
+          ],
+          checks: [r.flexureTop, r.flexureBot, r.shear, r.crack, r.deflection],
+        },
+      ]),
     ],
-    footerNote: 'Mô hình dải 1 m (Slab.xlsm). Chưa khẳng định tuân thủ đầy đủ TCVN 5574:2018.',
+    footerNote: '',
     warnings: items.flatMap((x) => x.result.warnings || []).slice(0, 20),
   };
 }
@@ -123,7 +123,7 @@ export function foundationThuyetMinhDoc(
       title: 'THUYẾT MINH TÍNH TOÁN MÓNG ĐƠN BÊ TÔNG CỐT THÉP',
       subtitle: `${m.projectName} · ${m.designer} · ${m.standard}`,
       itemName: `${items.length} móng · ${passN}/${items.length} ĐẠT`,
-      version: 'Móng V1.0 · TM đa · MongDon.xlsm',
+      version: '',
     },
     overallPass: items.length > 0 && passN === items.length,
     sections: [
@@ -132,7 +132,6 @@ export function foundationThuyetMinhDoc(
         rows: [
           { label: 'Số móng', value: String(items.length) },
           { label: 'ĐẠT / Tổng', value: `${passN} / ${items.length}` },
-          { label: 'Công thức', value: 'p=N/A±M/W+γDf · Nkt=0.75·Rbt·um·h0 · As console' },
         ],
       },
       {
@@ -159,7 +158,7 @@ export function foundationThuyetMinhDoc(
         },
       ]),
     ],
-    footerNote: 'Đối chiếu MongDon.xlsm. Chưa khẳng định tuân thủ đầy đủ TCVN 5574:2018.',
+    footerNote: '',
     warnings: items.flatMap((x) => x.result.warnings).slice(0, 20),
   };
 }
