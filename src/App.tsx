@@ -6,6 +6,8 @@ import ColumnPanel from './modules/ColumnPanel';
 import SlabPanel from './modules/SlabPanel';
 import FoundationPanel from './modules/FoundationPanel';
 import { openReportPdf, beamReportDoc } from './report/reportPdf';
+import { beamThuyetMinhDoc } from './report/thuyetMinhBeam';
+import { exportBeamExcel } from './report/excelReport';
 
 type ModuleId = 'beam' | 'column' | 'slab' | 'foundation';
 
@@ -151,9 +153,17 @@ export default function App() {
     download('tong-hop-dam-btct-v1.csv', '\ufeff' + XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(rows)), 'text/csv;charset=utf-8');
 
   const exportXlsx = () => {
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Tổng hợp');
-    XLSX.writeFile(wb, 'dam-btct-v1.xlsx');
+    exportBeamExcel(results, {
+      projectName: 'Dự án mẫu',
+      designer: 'KS. Thiết kế',
+    });
+  };
+
+  const exportThuyetMinhPdf = () => {
+    openReportPdf(beamThuyetMinhDoc(results, {
+      projectName: 'Dự án mẫu',
+      designer: 'KS. Thiết kế',
+    }));
   };
 
   const importJson = (file: File) => {
@@ -212,14 +222,15 @@ export default function App() {
             <button onClick={() => fileRef.current?.click()}>Import JSON</button>
             <button onClick={exportJson}>JSON</button>
             <button onClick={exportCsv}>CSV</button>
-            <button onClick={exportXlsx}>XLSX</button>
-            <button className="primary" onClick={() => openReportPdf(beamReportDoc(selected, result))}>Xuất PDF</button>
+            <button onClick={exportXlsx}>Excel báo cáo</button>
+            <button onClick={() => openReportPdf(beamReportDoc(selected, result))}>PDF dầm</button>
+            <button className="primary" onClick={exportThuyetMinhPdf}>Thuyết minh PDF</button>
           </div>
         </header>
 
         <section className="notice">
           <b>V1.2:</b> L nhịp hỗ trợ 2 chữ số thập phân (vd 4.25). Cốt thép nhập dạng <code>5d18</code> hoặc <code>3d22+2d16</code> → tự tính As (ô As khóa).
-          Moment SLS mặc định ≈ M<sub>ULS</sub>/1.4 nếu để 0.
+          Moment SLS mặc định ≈ M<sub>ULS</sub>/1.4 nếu để 0. Nút <b>Excel báo cáo</b> / <b>Thuyết minh PDF</b> xuất toàn bộ danh sách dầm theo mẫu.
         </section>
 
         <div className="workspace">
@@ -293,13 +304,13 @@ export default function App() {
               <DecimalField label="L nhịp (m)" value={selected.L ?? 0} step="0.01" onChange={(v) => update('L', v)} />
               <DecimalField label="Mser− ngắn (kNm)" value={selected.MserShortNeg ?? 0} step="0.01" onChange={(v) => update('MserShortNeg', v)} />
               <DecimalField label="Mser+ ngắn (kNm)" value={selected.MserShortPos ?? 0} step="0.01" onChange={(v) => update('MserShortPos', v)} />
-              <DecimalField label="Mser− dài (kNm)" value={selected.MserLongNeg ?? 0} step="0.01" onChange={(v) => update('MserLongNeg', v)} />
+              <DecimalField label="Mser− dài (kNm)" value={selected.MserLongNeg ?? 0} step="0.01" onChange={(v) => update('MserLongPos', v)} />
               <DecimalField label="Mser+ dài (kNm)" value={selected.MserLongPos ?? 0} step="0.01" onChange={(v) => update('MserLongPos', v)} />
               <Field label="Độ ẩm">
                 <select value={selected.humidity ?? 'mid'} onChange={(e) => update('humidity', e.target.value)}>
-                  <option value="high">>75%</option>
+                  <option value="high">&gt;75%</option>
                   <option value="mid">40–75%</option>
-                  <option value="low"><40%</option>
+                  <option value="low">&lt;40%</option>
                 </select>
               </Field>
               <Field label="Gối tựa">
@@ -335,7 +346,7 @@ export default function App() {
         <section className="summary card">
           <div className="card-title">
             <h2>Bảng tổng hợp</h2>
-            <small>localStorage · Import/Export JSON</small>
+            <small>localStorage · Import/Export JSON · Excel / PDF thuyết minh</small>
           </div>
           <div className="table-wrap">
             <table>
