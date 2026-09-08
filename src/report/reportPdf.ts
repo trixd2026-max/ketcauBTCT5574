@@ -1,7 +1,8 @@
 /**
- * Báo cáo PDF chuyên nghiệp — render HTML → print/save PDF (hỗ trợ tiếng Việt).
- * Không phụ thuộc font jsPDF; dùng cửa sổ in có stylesheet kỹ thuật.
+ * Báo cáo PDF chuyên nghiệp — HTML → xem trước overlay → In/Lưu PDF.
+ * Không phụ thuộc jsPDF; tiếng Việt đầy đủ qua HTML.
  */
+import { openHtmlReport, PRINT_PAGE_CSS } from './openHtmlReport';
 
 export type ReportMeta = {
   title: string;
@@ -29,10 +30,10 @@ export type ReportDoc = {
 
 function esc(s: string): string {
   return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/&/g, '&')
+    .replace(/</g, '<')
+    .replace(/>/g, '>')
+    .replace(/"/g, '"');
 }
 
 export function buildReportHtml(doc: ReportDoc): string {
@@ -120,11 +121,7 @@ export function buildReportHtml(doc: ReportDoc): string {
   .sign { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 28px; page-break-inside: avoid; }
   .sign .box { border-top: 1px dashed var(--line); padding-top: 8px; text-align: center; font-size: 12px; color: var(--muted); min-height: 72px; }
   .report-foot { display: flex; justify-content: space-between; gap: 12px; margin-top: 24px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); }
-  @media print {
-    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background: #fff; }
-    .no-print { display: none !important; }
-    .sheet { margin: 0; border: 0; box-shadow: none; max-width: none; border-radius: 0; }
-  }
+  ${PRINT_PAGE_CSS}
 </style>
 </head>
 <body>
@@ -132,7 +129,7 @@ export function buildReportHtml(doc: ReportDoc): string {
     <div><b>Xem trước báo cáo</b> — chọn «In / Lưu PDF» rồi chọn máy in «Microsoft Print to PDF» hoặc «Save as PDF»</div>
     <div>
       <button type="button" onclick="window.print()">In / Lưu PDF</button>
-      <button type="button" class="secondary" onclick="window.close()">Đóng</button>
+      <button type="button" class="secondary" onclick="window.print()">In lại</button>
     </div>
   </div>
   <div class="sheet">
@@ -169,77 +166,9 @@ export function buildReportHtml(doc: ReportDoc): string {
 </html>`;
 }
 
-/**
- * Mở báo cáo để In → Lưu PDF.
- * Không dùng windowFeatures "noopener" (trả về null → luôn báo chặn popup).
- * Ưu tiên: tab mới (blob URL) → fallback tải HTML → iframe print.
- */
+/** Mở báo cáo: overlay xem trước trong trang → In/Lưu PDF (không phụ thuộc popup). */
 export function openReportPdf(doc: ReportDoc, filename = 'bao-cao-btct.html'): void {
-  const html = buildReportHtml(doc);
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-
-  // 1) Tab mới — mở blob URL (không cần document.write)
-  const w = window.open(url, '_blank');
-  if (w) {
-    try {
-      w.opener = null;
-    } catch {
-      /* ignore */
-    }
-    // Giữ blob đủ lâu để tab tải xong
-    window.setTimeout(() => URL.revokeObjectURL(url), 120_000);
-    return;
-  }
-
-  // 2) Fallback: tải file HTML (không bị chặn popup)
-  try {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename.endsWith('.html') ? filename : `${filename}.html`;
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
-    // 3) Thử in qua iframe ẩn (một số trình duyệt cho phép)
-    tryPrintInIframe(html);
-    alert(
-      'Trình duyệt chặn cửa sổ mới — đã tải file HTML báo cáo.\n' +
-        'Mở file vừa tải → bấm Ctrl+P (Cmd+P) → chọn «Save as PDF» / «Microsoft Print to PDF».'
-    );
-  } catch {
-    URL.revokeObjectURL(url);
-    alert('Không xuất được báo cáo. Thử tắt chặn popup cho trang này rồi bấm lại.');
-  }
-}
-
-function tryPrintInIframe(html: string): void {
-  try {
-    const iframe = document.createElement('iframe');
-    iframe.setAttribute('aria-hidden', 'true');
-    iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;opacity:0;pointer-events:none';
-    document.body.appendChild(iframe);
-    const idoc = iframe.contentDocument || iframe.contentWindow?.document;
-    if (!idoc) {
-      iframe.remove();
-      return;
-    }
-    idoc.open();
-    idoc.write(html);
-    idoc.close();
-    window.setTimeout(() => {
-      try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } catch {
-        /* ignore */
-      }
-      window.setTimeout(() => iframe.remove(), 2000);
-    }, 400);
-  } catch {
-    /* ignore */
-  }
+  openHtmlReport(buildReportHtml(doc), filename);
 }
 
 /** Tải file HTML báo cáo (có thể mở và in PDF offline) */
@@ -424,9 +353,9 @@ export function columnReportDoc(
   return {
     meta: {
       title: 'BÁO CÁO TÍNH TOÁN CỘT BTCT',
-      subtitle: 'Độ mảnh · N–M (gần đúng) · Đai — Column V1.1',
+      subtitle: 'Độ mảnh · N–M (gần đúng) · Đai — Column V1.2',
       itemName: col.name,
-      version: 'Cột V1.1',
+      version: 'Cột V1.2',
     },
     overallPass: result.pass,
     sections: [
@@ -444,7 +373,7 @@ export function columnReportDoc(
         heading: '2. Kết quả kiểm tra',
         rows: [
           { label: 'μ / λmax / vd', value: `${fmt(result.mu, 3)}% / ${fmt(result.lambdaMax, 1)} / ${fmt(result.vd, 3)}` },
-          { label: 'Hệ số N–M α (gần đúng)', value: fmt(result.interaction, 3) },
+          { label: 'Hệ số N–M (gần đúng)', value: fmt(result.interaction, 3) },
         ],
         checks: [...Object.values(result.checks), result.shearX.check, result.shearY.check],
       },
@@ -500,25 +429,29 @@ export function slabReportDoc(
         rows: [
           { label: 'Chiều dày h', value: `${slab.h} mm` },
           { label: 'Lx × Ly', value: `${slab.Lx} × ${slab.Ly} m` },
-          { label: 'M− / M+ / Q', value: `${fmt(slab.Mtop)} / ${fmt(slab.Mbot)} kNm/m · ${fmt(slab.Q)} kN/m` },
+          { label: 'M trên / dưới', value: `${fmt(slab.Mtop)} / ${fmt(slab.Mbot)} kNm/m` },
+          { label: 'Q', value: `${fmt(slab.Q)} kN/m` },
           { label: 'Bê tông / thép', value: `${slab.concrete} / ${slab.steel}` },
           { label: 'Thép trên / dưới', value: `${slab.barsTop || '—'} / ${slab.barsBottom || '—'}` },
         ],
       },
       {
-        heading: '2. Kết quả',
+        heading: '2. Thép',
         rows: [
           { label: 'As trên yc / bố trí', value: `${fmt(result.AsTopReq, 0)} / ${fmt(result.AsTopProv, 0)} mm²/m` },
           { label: 'As dưới yc / bố trí', value: `${fmt(result.AsBotReq, 0)} / ${fmt(result.AsBotProv, 0)} mm²/m` },
         ],
+      },
+      {
+        heading: '3. Kiểm tra',
         checks: [result.flexureTop, result.flexureBot, result.shear, result.crack, result.deflection],
       },
       {
-        heading: '3. Kết luận',
+        heading: '4. Kết luận',
         rows: [{ label: 'Kết luận tổng hợp', value: result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT' }],
       },
     ],
-    warnings: result.warnings?.slice(0, 10),
+    warnings: result.warnings?.slice(0, 12),
   };
 }
 
@@ -528,6 +461,7 @@ export function foundationReportDoc(
     Lx: number;
     Ly: number;
     Hf: number;
+    Df: number;
     N: number;
     Mx: number;
     My: number;
@@ -539,28 +473,28 @@ export function foundationReportDoc(
   },
   result: {
     pass: boolean;
+    sigmaN: number;
+    sigmaMx?: number;
+    sigmaMy?: number;
     pAvg: number;
     pMax: number;
     pMin: number;
+    rtcUsed: number;
     soilAvg: { pass: boolean; message: string };
     soilMax: { pass: boolean; message: string };
     soilMin: { pass: boolean; message: string };
     punching: { pass: boolean; message: string; Nct: number; Nkt: number };
     flexureX: { pass: boolean; message: string };
     flexureY: { pass: boolean; message: string };
-    AsXReq: number;
-    AsXProv: number;
-    AsYReq: number;
-    AsYProv: number;
-    warnings?: string[];
+    warnings: string[];
   }
 ): ReportDoc {
   return {
     meta: {
       title: 'BÁO CÁO TÍNH TOÁN MÓNG ĐƠN BTCT',
-      subtitle: 'Áp lực nền · Chọc thủng · Uốn console — Móng V1.0',
+      subtitle: 'Nền · Chọc thủng · Uốn console — Móng V1.2',
       itemName: f.name,
-      version: 'Móng V1.0',
+      version: 'Móng V1.2',
     },
     overallPass: result.pass,
     sections: [
@@ -568,33 +502,45 @@ export function foundationReportDoc(
         heading: '1. Thông số đầu vào',
         rows: [
           { label: 'Lx × Ly × Hf', value: `${f.Lx} × ${f.Ly} × ${f.Hf} m` },
-          { label: 'N / Mx / My', value: `${fmt(f.N)} kN / ${fmt(f.Mx)} / ${fmt(f.My)} kNm` },
-          { label: 'Rtc', value: `${fmt(f.Rtc)} kN/m²` },
+          { label: 'Df', value: `${f.Df} m` },
+          { label: 'FZ / Mx / My', value: `${fmt(f.N)} kN / ${fmt(f.Mx)} / ${fmt(f.My)} kNm` },
+          { label: 'Rtc nhập', value: `${fmt(f.Rtc)} kN/m²` },
           { label: 'Bê tông / thép', value: `${f.concrete} / ${f.steel}` },
           { label: 'Thép X / Y', value: `${f.barsX || '—'} / ${f.barsY || '—'}` },
         ],
       },
       {
-        heading: '2. Áp lực nền & chọc thủng',
+        heading: '2. Áp lực nền',
         rows: [
+          { label: 'ΣN', value: `${fmt(result.sigmaN)} kN` },
+          {
+            label: 'ΣMx / ΣMy',
+            value:
+              result.sigmaMx != null
+                ? `${fmt(result.sigmaMx, 2)} / ${fmt(result.sigmaMy ?? 0, 2)} kNm`
+                : '—',
+          },
           { label: 'p_tb / p_max / p_min', value: `${fmt(result.pAvg)} / ${fmt(result.pMax)} / ${fmt(result.pMin)} kN/m²` },
-          { label: 'Nct / Nkt', value: `${fmt(result.punching.Nct)} / ${fmt(result.punching.Nkt)} kN` },
+          { label: 'Rtc dùng', value: `${fmt(result.rtcUsed)} kN/m²` },
         ],
-        checks: [result.soilAvg, result.soilMax, result.soilMin, result.punching],
+        checks: [result.soilAvg, result.soilMax, result.soilMin],
       },
       {
-        heading: '3. Cốt thép đáy',
+        heading: '3. Chọc thủng',
         rows: [
-          { label: 'Asx yc / bố trí', value: `${fmt(result.AsXReq, 0)} / ${fmt(result.AsXProv, 0)} mm²/m` },
-          { label: 'Asy yc / bố trí', value: `${fmt(result.AsYReq, 0)} / ${fmt(result.AsYProv, 0)} mm²/m` },
+          { label: 'Nct / Nkt', value: `${fmt(result.punching.Nct)} / ${fmt(result.punching.Nkt)} kN` },
         ],
+        checks: [result.punching],
+      },
+      {
+        heading: '4. Uốn console',
         checks: [result.flexureX, result.flexureY],
       },
       {
-        heading: '4. Kết luận',
+        heading: '5. Kết luận',
         rows: [{ label: 'Kết luận tổng hợp', value: result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT' }],
       },
     ],
-    warnings: result.warnings?.slice(0, 10),
+    warnings: result.warnings?.slice(0, 12),
   };
 }
