@@ -67,25 +67,30 @@ export function calcDeflection(input: DeflectionInput): DeflectionResult {
   const deltaShort = deltaFrom(Mshort, EIshort);
   const deltaLong = deltaFrom(Mlong, EIlong);
 
+  const eiLabel = crack.cracked ? 'EI có nứt (Ired2)' : 'EI chưa nứt (Ired1)';
   const checkShort = {
     pass: deltaShort <= limit,
     message:
       deltaShort <= limit
-        ? `δ ngắn hạn ≈ ${deltaShort.toFixed(1)} ≤ L/${limitRatio} = ${limit.toFixed(1)} mm`
-        : `δ ngắn hạn ≈ ${deltaShort.toFixed(1)} > L/${limitRatio} = ${limit.toFixed(1)} mm`,
+        ? `δ ngắn ≈ ${deltaShort.toFixed(1)} ≤ L/${limitRatio}=${limit.toFixed(1)} mm · ${eiLabel}`
+        : `δ ngắn ≈ ${deltaShort.toFixed(1)} > L/${limitRatio}=${limit.toFixed(1)} mm · ${eiLabel}`,
   };
   const checkLong = {
     pass: deltaLong <= limit,
     message:
       deltaLong <= limit
-        ? `δ dài hạn ≈ ${deltaLong.toFixed(1)} ≤ L/${limitRatio} = ${limit.toFixed(1)} mm`
-        : `δ dài hạn ≈ ${deltaLong.toFixed(1)} > L/${limitRatio} = ${limit.toFixed(1)} mm`,
+        ? `δ dài ≈ ${deltaLong.toFixed(1)} ≤ L/${limitRatio}=${limit.toFixed(1)} mm · EI dài hạn`
+        : `δ dài ≈ ${deltaLong.toFixed(1)} > L/${limitRatio}=${limit.toFixed(1)} mm · EI dài hạn`,
   };
 
   const warnings: string[] = [];
   if (input.L <= 0) warnings.push('Cần nhập chiều dài nhịp L để kiểm tra võng');
   if (Mshort <= 0 && Mlong <= 0) warnings.push('Chưa nhập moment sử dụng cho võng');
-  warnings.push('Võng là ước lượng đơn giản (chưa tích phân độ cong đầy đủ theo sơ đồ moment)');
+  if (crack.cracked) {
+    warnings.push(`Võng dùng độ cứng có nứt: EIshort=${(EIshort / 1e9).toFixed(2)}×10⁹ N·mm²`);
+  } else {
+    warnings.push(`Võng dùng độ cứng chưa nứt: EIshort=${(EIshort / 1e9).toFixed(2)}×10⁹ N·mm²`);
+  }
 
   return {
     Mcrc: crack.Mcrc,
