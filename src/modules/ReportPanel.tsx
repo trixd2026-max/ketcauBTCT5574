@@ -8,6 +8,7 @@ import { calcSlab, createDefaultSlab, type SlabInput } from '../engine/slab';
 import { calcFoundation, createDefaultFoundation, type FoundationInput } from '../engine/foundation';
 import { exportBeamExcel, exportGenericExcel, type ProjectMeta } from '../report/excelReport';
 import { openReportPdf } from '../report/reportPdf';
+import { exportProjectExcel, openProjectReportPdf } from '../report/projectExport';
 import { beamThuyetMinhDoc } from '../report/thuyetMinhBeam';
 import { columnThuyetMinhDoc, slabThuyetMinhDoc, foundationThuyetMinhDoc } from '../report/thuyetMinhMulti';
 import { importWorkbookFile } from '../report/excelImport';
@@ -18,14 +19,15 @@ const KEYS = {
   slabs: 'ketcau-btct-5574-slabs-v1',
   foundations: 'ketcau-btct-5574-foundations-v1',
   meta: 'ketcau-btct-5574-report-meta-v1',
-} as const;
+};
 
 type Scope = { beams: boolean; columns: boolean; slabs: boolean; foundations: boolean };
 
 function loadJson<T>(key: string, fallback: T): T {
   try {
-    const raw = JSON.parse(localStorage.getItem(key) ?? 'null');
-    return raw ?? fallback;
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw) as T;
   } catch {
     return fallback;
   }
@@ -59,12 +61,10 @@ function loadMeta(): ProjectMeta {
   return loadJson<ProjectMeta>(KEYS.meta, {
     projectName: 'Dự án mẫu',
     designer: 'KS. Thiết kế',
-    standard: 'TCVN 5574:2018 — Kết cấu bê tông và bê tông cốt thép',
+    date: new Date().toLocaleDateString('vi-VN'),
+    standard: 'TCVN 5574:2018 (tham chiếu)',
   });
 }
-
-const fmt = (v: number, d = 1) =>
-  Number.isFinite(v) ? v.toLocaleString('vi-VN', { maximumFractionDigits: d }) : '—';
 
 export default function ReportPanel() {
   const [meta, setMeta] = useState<ProjectMeta>(loadMeta);
@@ -75,6 +75,7 @@ export default function ReportPanel() {
     foundations: true,
   });
   const [tick, setTick] = useState(0);
+  const [importMsg, setImportMsg] = useState('');
 
   const data = useMemo(() => {
     void tick;
@@ -102,18 +103,9 @@ export default function ReportPanel() {
   };
 
   const counts = {
-    beams: {
-      n: data.beamResults.length,
-      pass: data.beamResults.filter((x) => x.result.pass).length,
-    },
-    columns: {
-      n: data.columnResults.length,
-      pass: data.columnResults.filter((x) => x.result.pass).length,
-    },
-    slabs: {
-      n: data.slabResults.length,
-      pass: data.slabResults.filter((x) => x.result.pass).length,
-    },
+    beams: { n: data.beamResults.length, pass: data.beamResults.filter((x) => x.result.pass).length },
+    columns: { n: data.columnResults.length, pass: data.columnResults.filter((x) => x.result.pass).length },
+    slabs: { n: data.slabResults.length, pass: data.slabResults.filter((x) => x.result.pass).length },
     foundations: {
       n: data.foundationResults.length,
       pass: data.foundationResults.filter((x) => x.result.pass).length,
@@ -132,24 +124,14 @@ export default function ReportPanel() {
     (scope.foundations ? counts.foundations.pass : 0);
 
   const exportExcelAll = () => {
-    if (scope.beams && data.beamResults.length) {
-      exportBeamExcel(data.beamResults, meta);
-    }
+    if (scope.beams && data.beamResults.length) exportBeamExcel(data.beamResults, meta);
     if (scope.columns && data.columnResults.length) {
       const summary = data.columnResults.map(({ col, result: r }) => ({
         Cột: col.name,
         'b×h': `${col.b}×${col.h}`,
         N: col.N,
-        Mx: col.Mx,
-        My: col.My,
-        Thép: col.bars || '',
-        'μ (%)': Number(r.mu.toFixed(3)),
-        λmax: Number(r.lambdaMax.toFixed(1)),
-        vd: Number(r.vd.toFixed(3)),
-        'N–M': r.checks.interaction.pass ? 'ĐẠT' : 'KĐ',
-        Mảnh: r.checks.slenderness.pass ? 'ĐẠT' : 'KĐ',
-        Đai: r.shearX.check.pass && r.shearY.check.pass ? 'ĐẠT' : 'KĐ',
-        'Kết luận': r.pass ? 'ĐẠT' : 'KHÔNG ĐẠT',
+        'N-M': r.interaction.toFixed(3),
+        KQ: r.pass ? 'ĐẠT' : 'KĐ',
       }));
       exportGenericExcel('THUYẾT MINH TÍNH TOÁN CỘT BÊ TÔNG CỐT THÉP', 'ThuyetMinh-Cot-BTCT', [
         { name: 'TongHop', rows: summary },
@@ -159,17 +141,7 @@ export default function ReportPanel() {
       const summary = data.slabResults.map(({ slab, result: r }) => ({
         Sàn: slab.name,
         h: slab.h,
-        'Lx×Ly': `${slab.Lx}×${slab.Ly}`,
-        'M−': slab.Mtop,
-        'M+': slab.Mbot,
-        Q: slab.Q,
-        'Thép trên': slab.barsTop || '',
-        'Thép dưới': slab.barsBottom || '',
-        Uốn: r.flexureTop.pass && r.flexureBot.pass ? 'ĐẠT' : 'KĐ',
-        Cắt: r.shear.pass ? 'ĐẠT' : 'KĐ',
-        Nứt: r.crack.pass ? 'ĐẠT' : 'KĐ',
-        Võng: r.deflection.pass ? 'ĐẠT' : 'KĐ',
-        'Kết luận': r.pass ? 'ĐẠT' : 'KHÔNG ĐẠT',
+        KQ: r.pass ? 'ĐẠT' : 'KĐ',
       }));
       exportGenericExcel('THUYẾT MINH TÍNH TOÁN SÀN BÊ TÔNG CỐT THÉP', 'ThuyetMinh-San-BTCT', [
         { name: 'TongHop', rows: summary },
@@ -178,69 +150,117 @@ export default function ReportPanel() {
     if (scope.foundations && data.foundationResults.length) {
       const summary = data.foundationResults.map(({ f, result: r }) => ({
         Móng: f.name,
-        'Lx×Ly×Hf': `${f.Lx}×${f.Ly}×${f.Hf}`,
-        N: f.N,
-        Mx: f.Mx,
-        My: f.My,
-        p_tb: Number(r.pAvg.toFixed(1)),
-        p_max: Number(r.pMax.toFixed(1)),
-        p_min: Number(r.pMin.toFixed(1)),
-        Nền: r.soilAvg.pass && r.soilMax.pass && r.soilMin.pass ? 'ĐẠT' : 'KĐ',
-        'Chọc thủng': r.punching.pass ? 'ĐẠT' : 'KĐ',
-        'Thép X': r.flexureX.pass ? 'ĐẠT' : 'KĐ',
-        'Thép Y': r.flexureY.pass ? 'ĐẠT' : 'KĐ',
-        'Kết luận': r.pass ? 'ĐẠT' : 'KHÔNG ĐẠT',
+        'Lx×Ly': `${f.Lx}×${f.Ly}`,
+        KQ: r.pass ? 'ĐẠT' : 'KĐ',
       }));
       exportGenericExcel('THUYẾT MINH TÍNH TOÁN MÓNG ĐƠN BÊ TÔNG CỐT THÉP', 'ThuyetMinh-Mong-BTCT', [
         { name: 'TongHop', rows: summary },
       ], meta);
     }
-    if (totalN === 0) alert('Chưa có cấu kiện nào trong phạm vi đã chọn. Nhập dữ liệu ở các tab Dầm/Cột/Sàn/Móng trước.');
+  };
+
+  const exportProjectAllExcel = () => {
+    const d = data;
+    exportProjectExcel({
+      meta,
+      beams: scope.beams ? d.beamResults : [],
+      columns: scope.columns
+        ? d.columnResults.map((x) => ({
+            col: x.col,
+            result: x.result,
+            asLabel: x.col.bars || '',
+          }))
+        : [],
+      slabs: scope.slabs ? d.slabResults : [],
+      foundations: scope.foundations ? d.foundationResults : [],
+    });
+  };
+
+  const exportProjectAllPdf = () => {
+    const d = data;
+    const sections: { title: string; rows: { name: string; size: string; pass: boolean; detail?: string }[] }[] = [];
+    if (scope.beams) {
+      sections.push({
+        title: 'Dầm BTCT',
+        rows: d.beamResults.map(({ beam, result }) => ({
+          name: beam.name,
+          size: `${beam.b}×${beam.h} mm` + (beam.L ? ` · L=${beam.L}m` : ''),
+          pass: result.pass,
+          detail: result.pass ? '' : 'KĐ',
+        })),
+      });
+    }
+    if (scope.columns) {
+      sections.push({
+        title: 'Cột BTCT (N–M gần đúng)',
+        rows: d.columnResults.map(({ col, result }) => ({
+          name: col.name,
+          size: `${col.b}×${col.h} mm`,
+          pass: result.pass,
+          detail: `N–M≈${result.interaction.toFixed(3)} · vd=${result.vd.toFixed(3)}`,
+        })),
+      });
+    }
+    if (scope.slabs) {
+      sections.push({
+        title: 'Sàn BTCT',
+        rows: d.slabResults.map(({ slab, result }) => ({
+          name: slab.name,
+          size: `h=${slab.h} · ${slab.Lx}×${slab.Ly} m`,
+          pass: result.pass,
+        })),
+      });
+    }
+    if (scope.foundations) {
+      sections.push({
+        title: 'Móng đơn BTCT',
+        rows: d.foundationResults.map(({ f, result }) => ({
+          name: f.name,
+          size: `${f.Lx}×${f.Ly}×${f.Hf} m`,
+          pass: result.pass,
+          detail: `p_max=${result.pMax.toFixed(0)} · Nct=${result.punching.Nct.toFixed(0)}`,
+        })),
+      });
+    }
+    openProjectReportPdf({
+      meta: {
+        projectName: meta.projectName || 'Dự án',
+        designer: meta.designer || '',
+        date: meta.date || new Date().toLocaleDateString('vi-VN'),
+        standard: meta.standard || 'TCVN 5574:2018 (tham chiếu)',
+      },
+      sections,
+    });
   };
 
   const exportPdfBeams = () => {
-    if (!data.beamResults.length) {
-      alert('Chưa có dầm trong localStorage.');
-      return;
-    }
+    if (!data.beamResults.length) return;
     openReportPdf(beamThuyetMinhDoc(data.beamResults, meta));
   };
-
   const exportPdfColumns = () => {
-    if (!data.columnResults.length) {
-      alert('Chưa có cột.');
-      return;
-    }
+    if (!data.columnResults.length) return;
     openReportPdf(columnThuyetMinhDoc(data.columnResults, meta));
   };
-
   const exportPdfSlabs = () => {
-    if (!data.slabResults.length) {
-      alert('Chưa có sàn.');
-      return;
-    }
+    if (!data.slabResults.length) return;
     openReportPdf(slabThuyetMinhDoc(data.slabResults, meta));
   };
-
   const exportPdfFoundations = () => {
-    if (!data.foundationResults.length) {
-      alert('Chưa có móng.');
-      return;
-    }
+    if (!data.foundationResults.length) return;
     openReportPdf(foundationThuyetMinhDoc(data.foundationResults, meta));
   };
 
-  const onImportWorkbook = async (file: File) => {
+  const onImport = async (file: File) => {
     try {
       const res = await importWorkbookFile(file);
       if (res.beams.length) localStorage.setItem(KEYS.beams, JSON.stringify(res.beams));
       if (res.columns.length) localStorage.setItem(KEYS.columns, JSON.stringify(res.columns));
       if (res.slabs.length) localStorage.setItem(KEYS.slabs, JSON.stringify(res.slabs));
       if (res.foundations.length) localStorage.setItem(KEYS.foundations, JSON.stringify(res.foundations));
-      setTick((x) => x + 1);
-      alert(res.messages.join('\n') || 'Import xong.');
+      setImportMsg(res.messages.join(' · ') || `Import OK: ${res.beams.length} dầm, ${res.columns.length} cột, ${res.slabs.length} sàn, ${res.foundations.length} móng`);
+      setTick((t) => t + 1);
     } catch (e) {
-      alert('Import thất bại: ' + (e instanceof Error ? e.message : String(e)));
+      setImportMsg('Import lỗi: ' + (e instanceof Error ? e.message : String(e)));
     }
   };
 
@@ -248,241 +268,92 @@ export default function ReportPanel() {
     <>
       <header>
         <div>
-          <h1>Báo cáo / Thuyết minh</h1>
-          <p>Xuất Excel · PDF theo mẫu — Dầm · Cột · Sàn · Móng</p>
+          <h1>Báo cáo · Hồ sơ dự án</h1>
+          <p>Excel/PDF hồ sơ dự án gộp · Import TongHop · Dầm · Cột · Sàn · Móng</p>
         </div>
         <div className="actions">
-          <button type="button" onClick={() => setTick((t) => t + 1)}>
-            Làm mới dữ liệu
+          <label className="btn">
+            Import Excel/JSON
+            <input
+              type="file"
+              accept=".xlsx,.xls,.xlsm,.json"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void onImport(f);
+                e.target.value = '';
+              }}
+            />
+          </label>
+          <button type="button" className="primary" onClick={exportProjectAllExcel}>
+            Excel hồ sơ dự án
           </button>
-          <button type="button" className="primary" onClick={exportExcelAll}>
-            Xuất Excel
+          <button type="button" className="primary" onClick={exportProjectAllPdf}>
+            PDF hồ sơ dự án
           </button>
         </div>
       </header>
 
       <section className="notice">
-        <b>Tab Báo cáo:</b> đọc danh sách cấu kiện từ localStorage (các tab Dầm/Cột/Sàn/Móng).
-        Điền thông tin dự án → chọn phạm vi → xuất Excel / PDF TM đa cấu kiện.
-        Hỗ trợ Import Excel/JSON (sheet TongHop). Chưa khẳng định tuân thủ đầy đủ TCVN 5574:2018.
+        Điền thông tin dự án → chọn phạm vi → xuất Excel / PDF hồ sơ gộp hoặc TM từng module.
+        Hỗ trợ Import Excel/JSON (sheet TongHop). Cột N–M gần đúng. Chưa full compliance TCVN 5574:2018.
+        {importMsg ? <div style={{ marginTop: 8 }}>{importMsg}</div> : null}
       </section>
 
-      <div className="workspace" style={{ gridTemplateColumns: '1fr 1fr' }}>
-        <section className="input card">
-          <div className="card-title">
-            <h2>Thông tin dự án</h2>
-          </div>
-          <fieldset>
-            <legend>Header báo cáo</legend>
-            <div className="form">
-              <label>
-                Tên dự án
-                <input
-                  value={meta.projectName ?? ''}
-                  onChange={(e) => saveMeta({ projectName: e.target.value })}
-                  placeholder="Dự án mẫu - Nhà phố 5 tầng"
-                />
-              </label>
-              <label>
-                Người thiết kế
-                <input
-                  value={meta.designer ?? ''}
-                  onChange={(e) => saveMeta({ designer: e.target.value })}
-                  placeholder="KS. Nguyễn Văn A"
-                />
-              </label>
-              <label>
-                Tiêu chuẩn
-                <input
-                  value={meta.standard ?? ''}
-                  onChange={(e) => saveMeta({ standard: e.target.value })}
-                />
-              </label>
-            </div>
-          </fieldset>
+      <section className="card" style={{ marginBottom: 16 }}>
+        <div className="card-title"><h2>Thông tin dự án</h2></div>
+        <div className="form">
+          <label>Tên dự án<input value={meta.projectName ?? ''} onChange={(e) => saveMeta({ projectName: e.target.value })} /></label>
+          <label>Người thiết kế<input value={meta.designer ?? ''} onChange={(e) => saveMeta({ designer: e.target.value })} /></label>
+          <label>Ngày<input value={meta.date ?? ''} onChange={(e) => saveMeta({ date: e.target.value })} /></label>
+          <label>Tiêu chuẩn<input value={meta.standard ?? ''} onChange={(e) => saveMeta({ standard: e.target.value })} /></label>
+        </div>
+      </section>
 
-          <fieldset>
-            <legend>Phạm vi xuất</legend>
-            <div className="form" style={{ gridTemplateColumns: '1fr 1fr' }}>
-              {(
-                [
-                  ['beams', 'Dầm', counts.beams],
-                  ['columns', 'Cột', counts.columns],
-                  ['slabs', 'Sàn', counts.slabs],
-                  ['foundations', 'Móng', counts.foundations],
-                ] as const
-              ).map(([key, label, c]) => (
-                <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <input
-                    type="checkbox"
-                    checked={scope[key]}
-                    onChange={(e) => setScope((s) => ({ ...s, [key]: e.target.checked }))}
-                  />
-                  <span>
-                    {label}{' '}
-                    <small>
-                      ({c.n} · {c.pass}/{c.n} ĐẠT)
-                    </small>
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        </section>
-
-        <section className="result-panel card">
-          <div className="card-title">
-            <h2>Tổng hợp</h2>
-            <span className={`status ${totalN > 0 && totalPass === totalN ? 'pass' : totalN === 0 ? '' : 'fail'} large`}>
-              {totalN === 0 ? 'CHƯA CÓ DL' : totalPass === totalN ? 'ĐẠT' : 'CÓ HẠNG MỤC KĐ'}
-            </span>
-          </div>
-          <div className="result">
-            <span>Cấu kiện trong phạm vi</span>
-            <strong>
-              {totalPass}/{totalN} ĐẠT
-            </strong>
-          </div>
-          <div className="result">
-            <span>Dầm</span>
-            <strong>
-              {counts.beams.pass}/{counts.beams.n}
-            </strong>
-          </div>
-          <div className="result">
-            <span>Cột</span>
-            <strong>
-              {counts.columns.pass}/{counts.columns.n}
-            </strong>
-          </div>
-          <div className="result">
-            <span>Sàn</span>
-            <strong>
-              {counts.slabs.pass}/{counts.slabs.n}
-            </strong>
-          </div>
-          <div className="result">
-            <span>Móng</span>
-            <strong>
-              {counts.foundations.pass}/{counts.foundations.n}
-            </strong>
-          </div>
-
-          <div style={{ marginTop: 16, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            <button type="button" className="primary" onClick={exportExcelAll}>
-              Excel (phạm vi đã chọn)
-            </button>
-            <button type="button" onClick={exportPdfBeams} disabled={!counts.beams.n}>
-              PDF thuyết minh Dầm
-            </button>
-            <button type="button" onClick={exportPdfColumns} disabled={!counts.columns.n}>
-              PDF TM Cột
-            </button>
-            <button type="button" onClick={exportPdfSlabs} disabled={!counts.slabs.n}>
-              PDF TM Sàn
-            </button>
-            <button type="button" onClick={exportPdfFoundations} disabled={!counts.foundations.n}>
-              PDF TM Móng
-            </button>
-            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <span className="btn-like">Import Excel/JSON</span>
-              <input
-                type="file"
-                accept=".xlsx,.xls,.xlsm,.json"
-                style={{ display: 'none' }}
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) void onImportWorkbook(f);
-                  e.target.value = '';
-                }}
-              />
-            </label>
-          </div>
-        </section>
-      </div>
+      <section className="card" style={{ marginBottom: 16 }}>
+        <div className="card-title"><h2>Phạm vi xuất</h2><small>Tổng {totalN} CK · Đạt {totalPass}</small></div>
+        <div className="form">
+          <label><input type="checkbox" checked={scope.beams} onChange={(e) => setScope((s) => ({ ...s, beams: e.target.checked }))} /> Dầm ({counts.beams.n})</label>
+          <label><input type="checkbox" checked={scope.columns} onChange={(e) => setScope((s) => ({ ...s, columns: e.target.checked }))} /> Cột ({counts.columns.n})</label>
+          <label><input type="checkbox" checked={scope.slabs} onChange={(e) => setScope((s) => ({ ...s, slabs: e.target.checked }))} /> Sàn ({counts.slabs.n})</label>
+          <label><input type="checkbox" checked={scope.foundations} onChange={(e) => setScope((s) => ({ ...s, foundations: e.target.checked }))} /> Móng ({counts.foundations.n})</label>
+        </div>
+        <div className="actions" style={{ marginTop: 12 }}>
+          <button type="button" className="primary" onClick={exportProjectAllExcel}>Excel hồ sơ dự án</button>
+          <button type="button" className="primary" onClick={exportProjectAllPdf}>PDF hồ sơ dự án</button>
+          <button type="button" onClick={exportExcelAll}>Excel từng module</button>
+          <button type="button" onClick={exportPdfBeams} disabled={!counts.beams.n}>PDF TM Dầm</button>
+          <button type="button" onClick={exportPdfColumns} disabled={!counts.columns.n}>PDF TM Cột</button>
+          <button type="button" onClick={exportPdfSlabs} disabled={!counts.slabs.n}>PDF TM Sàn</button>
+          <button type="button" onClick={exportPdfFoundations} disabled={!counts.foundations.n}>PDF TM Móng</button>
+          <button type="button" onClick={() => setTick((t) => t + 1)}>Làm mới từ localStorage</button>
+        </div>
+      </section>
 
       <section className="summary card">
-        <div className="card-title">
-          <h2>Xem trước danh sách</h2>
-          <small>Dữ liệu lấy từ localStorage — bấm «Làm mới» nếu vừa sửa ở tab khác</small>
-        </div>
+        <div className="card-title"><h2>Tổng hợp nhanh</h2></div>
         <div className="table-wrap">
           <table>
-            <thead>
-              <tr>
-                <th>Loại</th>
-                <th>Tên</th>
-                <th>Thông số</th>
-                <th>Kết luận</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Loại</th><th>Tên</th><th>KQ</th></tr></thead>
             <tbody>
               {scope.beams &&
                 data.beamResults.map(({ beam, result }) => (
-                  <tr key={beam.id}>
-                    <td>Dầm</td>
-                    <td>{beam.name}</td>
-                    <td>
-                      {beam.b}×{beam.h} · L={beam.L ?? '—'}m · M+/{fmt(beam.MPositive)} M−/{fmt(beam.MNegative)}
-                    </td>
-                    <td>
-                      <span className={`status ${result.pass ? 'pass' : 'fail'}`}>
-                        {result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}
-                      </span>
-                    </td>
-                  </tr>
+                  <tr key={beam.id}><td>Dầm</td><td>{beam.name}</td><td><span className={`status ${result.pass ? 'pass' : 'fail'}`}>{result.pass ? 'ĐẠT' : 'KĐ'}</span></td></tr>
                 ))}
               {scope.columns &&
                 data.columnResults.map(({ col, result }) => (
-                  <tr key={col.id}>
-                    <td>Cột</td>
-                    <td>{col.name}</td>
-                    <td>
-                      {col.b}×{col.h} · N={fmt(col.N, 0)} · Mx={fmt(col.Mx)} · My={fmt(col.My)}
-                    </td>
-                    <td>
-                      <span className={`status ${result.pass ? 'pass' : 'fail'}`}>
-                        {result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}
-                      </span>
-                    </td>
-                  </tr>
+                  <tr key={col.id}><td>Cột</td><td>{col.name}</td><td><span className={`status ${result.pass ? 'pass' : 'fail'}`}>{result.pass ? 'ĐẠT' : 'KĐ'}</span></td></tr>
                 ))}
               {scope.slabs &&
                 data.slabResults.map(({ slab, result }) => (
-                  <tr key={slab.id}>
-                    <td>Sàn</td>
-                    <td>{slab.name}</td>
-                    <td>
-                      h={slab.h} · {slab.Lx}×{slab.Ly}m
-                    </td>
-                    <td>
-                      <span className={`status ${result.pass ? 'pass' : 'fail'}`}>
-                        {result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}
-                      </span>
-                    </td>
-                  </tr>
+                  <tr key={slab.id}><td>Sàn</td><td>{slab.name}</td><td><span className={`status ${result.pass ? 'pass' : 'fail'}`}>{result.pass ? 'ĐẠT' : 'KĐ'}</span></td></tr>
                 ))}
               {scope.foundations &&
                 data.foundationResults.map(({ f, result }) => (
-                  <tr key={f.id}>
-                    <td>Móng</td>
-                    <td>{f.name}</td>
-                    <td>
-                      {f.Lx}×{f.Ly}×{f.Hf} · N={fmt(f.N, 0)}
-                    </td>
-                    <td>
-                      <span className={`status ${result.pass ? 'pass' : 'fail'}`}>
-                        {result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}
-                      </span>
-                    </td>
-                  </tr>
+                  <tr key={f.id}><td>Móng</td><td>{f.name}</td><td><span className={`status ${result.pass ? 'pass' : 'fail'}`}>{result.pass ? 'ĐẠT' : 'KĐ'}</span></td></tr>
                 ))}
-              {totalN === 0 && (
-                <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', color: '#666' }}>
-                    Chưa có cấu kiện — chuyển sang tab Dầm/Cột/Sàn/Móng để nhập liệu.
-                  </td>
-                </tr>
+              {!totalN && (
+                <tr><td colSpan={3}>Chưa có cấu kiện trong localStorage — nhập ở các tab Dầm/Cột/Sàn/Móng hoặc Import Excel.</td></tr>
               )}
             </tbody>
           </table>
