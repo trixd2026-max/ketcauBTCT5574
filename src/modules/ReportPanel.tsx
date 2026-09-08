@@ -1,5 +1,5 @@
 /**
- * Tab Báo cáo — xuất Excel / PDF thuyết minh tập trung cho Dầm · Cột · Sàn · Móng.
+ * Tab Báo cáo — xuất Excel / PDF / Word thuyết minh tập trung cho Dầm · Cột · Sàn · Móng.
  */
 import { useMemo, useState } from 'react';
 import { calcBeam, createDefaultBeam, type BeamInput } from '../engine/beam';
@@ -9,6 +9,7 @@ import { calcFoundation, createDefaultFoundation, type FoundationInput } from '.
 import { exportBeamExcel, exportGenericExcel, type ProjectMeta } from '../report/excelReport';
 import { openReportPdf } from '../report/reportPdf';
 import { exportProjectExcel, openProjectReportPdf } from '../report/projectExport';
+import { exportReportWord, exportProjectWord } from '../report/wordReport';
 import { beamThuyetMinhDoc } from '../report/thuyetMinhBeam';
 import { columnThuyetMinhDoc, slabThuyetMinhDoc, foundationThuyetMinhDoc } from '../report/thuyetMinhMulti';
 import { importWorkbookFile } from '../report/excelImport';
@@ -62,7 +63,7 @@ function loadMeta(): ProjectMeta {
     projectName: 'Dự án mẫu',
     designer: 'KS. Thiết kế',
     date: new Date().toLocaleDateString('vi-VN'),
-    standard: 'TCVN 5574:2018 (tham chiếu)',
+    standard: 'TCVN 5574:2018',
   });
 }
 
@@ -192,7 +193,7 @@ export default function ReportPanel() {
     }
     if (scope.columns) {
       sections.push({
-        title: 'Cột BTCT (N–M gần đúng)',
+        title: 'Cột BTCT',
         rows: d.columnResults.map(({ col, result }) => ({
           name: col.name,
           size: `${col.b}×${col.h} mm`,
@@ -227,7 +228,7 @@ export default function ReportPanel() {
         projectName: meta.projectName || 'Dự án',
         designer: meta.designer || '',
         date: meta.date || new Date().toLocaleDateString('vi-VN'),
-        standard: meta.standard || 'TCVN 5574:2018 (tham chiếu)',
+        standard: meta.standard || 'TCVN 5574:2018',
       },
       sections,
     });
@@ -250,6 +251,79 @@ export default function ReportPanel() {
     openReportPdf(foundationThuyetMinhDoc(data.foundationResults, meta));
   };
 
+  const exportWordBeams = () => {
+    if (!data.beamResults.length) return;
+    void exportReportWord(beamThuyetMinhDoc(data.beamResults, meta), 'ThuyetMinh-Dam-BTCT.docx');
+  };
+  const exportWordColumns = () => {
+    if (!data.columnResults.length) return;
+    void exportReportWord(columnThuyetMinhDoc(data.columnResults, meta), 'ThuyetMinh-Cot-BTCT.docx');
+  };
+  const exportWordSlabs = () => {
+    if (!data.slabResults.length) return;
+    void exportReportWord(slabThuyetMinhDoc(data.slabResults, meta), 'ThuyetMinh-San-BTCT.docx');
+  };
+  const exportWordFoundations = () => {
+    if (!data.foundationResults.length) return;
+    void exportReportWord(foundationThuyetMinhDoc(data.foundationResults, meta), 'ThuyetMinh-Mong-BTCT.docx');
+  };
+
+  const exportProjectAllWord = () => {
+    const d = data;
+    const sections: { title: string; rows: { name: string; size: string; pass: boolean; detail?: string }[] }[] = [];
+    if (scope.beams) {
+      sections.push({
+        title: 'Dầm BTCT',
+        rows: d.beamResults.map(({ beam, result }) => ({
+          name: beam.name,
+          size: `${beam.b}×${beam.h} mm` + (beam.L ? ` · L=${beam.L}m` : ''),
+          pass: result.pass,
+        })),
+      });
+    }
+    if (scope.columns) {
+      sections.push({
+        title: 'Cột BTCT',
+        rows: d.columnResults.map(({ col, result }) => ({
+          name: col.name,
+          size: `${col.b}×${col.h} mm`,
+          pass: result.pass,
+          detail: `N–M≈${result.interaction.toFixed(3)}`,
+        })),
+      });
+    }
+    if (scope.slabs) {
+      sections.push({
+        title: 'Sàn BTCT',
+        rows: d.slabResults.map(({ slab, result }) => ({
+          name: slab.name,
+          size: `h=${slab.h} · ${slab.Lx}×${slab.Ly} m`,
+          pass: result.pass,
+        })),
+      });
+    }
+    if (scope.foundations) {
+      sections.push({
+        title: 'Móng đơn BTCT',
+        rows: d.foundationResults.map(({ f, result }) => ({
+          name: f.name,
+          size: `${f.Lx}×${f.Ly}×${f.Hf} m`,
+          pass: result.pass,
+          detail: `p_max=${result.pMax.toFixed(0)}`,
+        })),
+      });
+    }
+    void exportProjectWord({
+      meta: {
+        projectName: meta.projectName || 'Dự án',
+        designer: meta.designer || '',
+        date: meta.date || new Date().toLocaleDateString('vi-VN'),
+        standard: meta.standard || 'TCVN 5574:2018',
+      },
+      sections,
+    });
+  };
+
   const onImport = async (file: File) => {
     try {
       const res = await importWorkbookFile(file);
@@ -269,7 +343,7 @@ export default function ReportPanel() {
       <header>
         <div>
           <h1>Báo cáo · Hồ sơ dự án</h1>
-          <p>Excel/PDF hồ sơ dự án gộp · Import TongHop · Dầm · Cột · Sàn · Móng</p>
+          <p>Excel / PDF / Word hồ sơ dự án · Import TongHop · Dầm · Cột · Sàn · Móng</p>
         </div>
         <div className="actions">
           <label className="btn">
@@ -291,12 +365,15 @@ export default function ReportPanel() {
           <button type="button" className="primary" onClick={exportProjectAllPdf}>
             PDF hồ sơ dự án
           </button>
+          <button type="button" className="primary" onClick={exportProjectAllWord}>
+            Word hồ sơ dự án
+          </button>
         </div>
       </header>
 
       <section className="notice">
-        Điền thông tin dự án → chọn phạm vi → xuất Excel / PDF hồ sơ gộp hoặc TM từng module.
-        Hỗ trợ Import Excel/JSON (sheet TongHop). Cột N–M gần đúng. Chưa full compliance TCVN 5574:2018.
+        Điền thông tin dự án → chọn phạm vi → xuất Excel / PDF / Word hồ sơ gộp hoặc TM từng module.
+        Hỗ trợ Import Excel/JSON (sheet TongHop). Cột N–M gần đúng.
         {importMsg ? <div style={{ marginTop: 8 }}>{importMsg}</div> : null}
       </section>
 
@@ -321,11 +398,16 @@ export default function ReportPanel() {
         <div className="actions" style={{ marginTop: 12 }}>
           <button type="button" className="primary" onClick={exportProjectAllExcel}>Excel hồ sơ dự án</button>
           <button type="button" className="primary" onClick={exportProjectAllPdf}>PDF hồ sơ dự án</button>
+          <button type="button" className="primary" onClick={exportProjectAllWord}>Word hồ sơ dự án</button>
           <button type="button" onClick={exportExcelAll}>Excel từng module</button>
           <button type="button" onClick={exportPdfBeams} disabled={!counts.beams.n}>PDF TM Dầm</button>
           <button type="button" onClick={exportPdfColumns} disabled={!counts.columns.n}>PDF TM Cột</button>
           <button type="button" onClick={exportPdfSlabs} disabled={!counts.slabs.n}>PDF TM Sàn</button>
           <button type="button" onClick={exportPdfFoundations} disabled={!counts.foundations.n}>PDF TM Móng</button>
+          <button type="button" onClick={exportWordBeams} disabled={!counts.beams.n}>Word TM Dầm</button>
+          <button type="button" onClick={exportWordColumns} disabled={!counts.columns.n}>Word TM Cột</button>
+          <button type="button" onClick={exportWordSlabs} disabled={!counts.slabs.n}>Word TM Sàn</button>
+          <button type="button" onClick={exportWordFoundations} disabled={!counts.foundations.n}>Word TM Móng</button>
           <button type="button" onClick={() => setTick((t) => t + 1)}>Làm mới từ localStorage</button>
         </div>
       </section>
