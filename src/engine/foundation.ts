@@ -3,6 +3,7 @@
  *
  * Áp lực đáy:
  *   ΣN = FZ + Htn·γ'·Af   (khi Htn>0; nếu Htn=0 thì N dùng trực tiếp)
+ *   ΣMx = MX − FY·Hf − FZ·ey ; ΣMy = MY + FX·Hf + FZ·ex
  *   p  = ΣN/Af ± |Mx|/Wx ± |My|/Wy + γ·Df + pg
  *
  * Rtc (áp lực tiêu chuẩn đất nền) — công thức MongDon:
@@ -24,6 +25,12 @@ export type FoundationInput = {
   N: number;
   Mx: number;
   My: number;
+  /** Lực ngang tại đỉnh cột/móng (kN) — quy đổi moment đáy */
+  Fx?: number;
+  Fy?: number;
+  /** Lệch tâm cột so với tâm móng (m) */
+  ex?: number;
+  ey?: number;
   Rtc: number;
   concrete: string;
   steel: string;
@@ -64,6 +71,8 @@ export type FoundationResult = {
   Wx: number;
   Wy: number;
   sigmaN: number;
+  sigmaMx: number;
+  sigmaMy: number;
   pAvg: number;
   pMax: number;
   pMin: number;
@@ -110,18 +119,9 @@ export function bearingCapacityFactors(phiDeg: number): { A: number; B: number; 
 }
 
 export function calcRtc(input: {
-  Lx: number;
-  Ly: number;
-  Df: number;
-  phi: number;
-  cII: number;
-  gammaII: number;
-  gammaPrime: number;
-  m1: number;
-  m2: number;
-  k: number;
-  zwt: number;
-  h0Basement: number;
+  Lx: number; Ly: number; Df: number; phi: number; cII: number;
+  gammaII: number; gammaPrime: number; m1: number; m2: number; k: number;
+  zwt: number; h0Basement: number;
 }): BearingFactors {
   const { A, B, D } = bearingCapacityFactors(input.phi);
   const b = Math.min(Math.max(input.Lx, 0.1), Math.max(input.Ly, 0.1));
@@ -147,13 +147,15 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
   const Df = Math.max(input.Df, 0);
   const colB = Math.max(input.colB, 0.1);
   const colH = Math.max(input.colH, 0.1);
-  const Mx = Math.abs(input.Mx);
-  const My = Math.abs(input.My);
   const a_mm = input.a > 0 ? input.a : 50;
   const gammaFill = input.gammaFill ?? 20;
   const gammaPrime = input.gammaPrime ?? gammaFill;
   const pg = input.pg ?? 0;
   const Htn = Math.max(input.Htn ?? 0, 0);
+  const Fx = input.Fx ?? 0;
+  const Fy = input.Fy ?? 0;
+  const ex = input.ex ?? 0;
+  const ey = input.ey ?? 0;
 
   const concrete = getConcrete(input.concrete);
   const steel = getSteel(input.steel);
@@ -167,19 +169,21 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
   const Fz = input.N;
   const sigmaN = Htn > 0 ? Fz + Htn * gammaPrime * Af : Fz;
 
+  // ΣMx = MX − FY·Hf − FZ·ey ; ΣMy = MY + FX·Hf + FZ·ex  (MongDon AM/AN)
+  const sigmaMx = Math.abs(input.Mx - Fy * Hf - Fz * ey);
+  const sigmaMy = Math.abs(input.My + Fx * Hf + Fz * ex);
+
   const selfW = gammaFill * Df + pg;
   const pAvg = sigmaN / Af + selfW;
-  const pMax = sigmaN / Af + Mx / Wx + My / Wy + selfW;
-  const pMin = sigmaN / Af - Mx / Wx - My / Wy + selfW;
+  const pMax = sigmaN / Af + sigmaMx / Wx + sigmaMy / Wy + selfW;
+  const pMin = sigmaN / Af - sigmaMx / Wx - sigmaMy / Wy + selfW;
 
   const rtcMode = input.rtcMode ?? 'manual';
   let bearing: BearingFactors | undefined;
   let rtcUsed = Math.max(input.Rtc, 1);
   if (rtcMode === 'calc') {
     bearing = calcRtc({
-      Lx,
-      Ly,
-      Df,
+      Lx, Ly, Df,
       phi: input.phi ?? 12,
       cII: input.cII ?? 19.5,
       gammaII: input.gammaII ?? 19.1,
@@ -224,11 +228,7 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
   const punchingPass = Nct <= Nkt + 1e-3;
   const punching = {
     ...check(punchingPass, `Nct=${Nct.toFixed(1)} ${punchingPass ? '≤' : '>'} Nkt=${Nkt.toFixed(1)} kN`),
-    Nct,
-    Nkt,
-    um,
-    Act,
-    ho,
+    Nct, Nkt, um, Act, ho,
   };
 
   const MxConsole = (Math.max(pMax, 0) * Math.max(cx1, cx2) ** 2) / 2;
@@ -250,6 +250,11 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
   if (Math.max(cx1, cx2) < 0.05) warnings.push('Console X rất nhỏ — kiểm tra kích thước móng/cột.');
   if (pMin < 0) warnings.push('p_min < 0: có nguy cơ nhổ góc móng.');
   if (Htn > 0) warnings.push(`ΣN = FZ(${Fz.toFixed(1)}) + Htn·γ'·Af = ${sigmaN.toFixed(1)} kN`);
+  if (Fx !== 0 || Fy !== 0 || ex !== 0 || ey !== 0) {
+    warnings.push(
+      `ΣM đáy: Mx=${sigmaMx.toFixed(2)} (MX−FY·Hf−FZ·ey), My=${sigmaMy.toFixed(2)} (MY+FX·Hf+FZ·ex)`
+    );
+  }
 
   const flexureX = check(
     AsXProv + 1e-6 >= AsXReq,
@@ -264,7 +269,7 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
     soilAvg.pass && soilMax.pass && soilMin.pass && punching.pass && flexureX.pass && flexureY.pass;
 
   return {
-    Af, Wx, Wy, sigmaN, pAvg, pMax, pMin, rtcUsed, bearing,
+    Af, Wx, Wy, sigmaN, sigmaMx, sigmaMy, pAvg, pMax, pMin, rtcUsed, bearing,
     soilAvg, soilMax, soilMin, punching, flexureX, flexureY,
     AsXReq, AsXProv, AsYReq, AsYProv, AsXMin: AsMin, AsYMin: AsMin,
     pass, warnings,
@@ -272,34 +277,9 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
 }
 
 export const createDefaultFoundation = (id: string = crypto.randomUUID()): FoundationInput => ({
-  id,
-  name: 'Móng 1',
-  Lx: 2.0,
-  Ly: 2.0,
-  Hf: 0.5,
-  Df: 1.5,
-  colB: 0.4,
-  colH: 0.4,
-  N: 800,
-  Mx: 50,
-  My: 40,
-  Rtc: 200,
-  concrete: 'B25',
-  steel: 'CB400-V',
-  a: 50,
-  barsX: 'd12a150',
-  barsY: 'd12a150',
-  gammaFill: 20,
-  pg: 0,
-  Htn: 0,
-  rtcMode: 'manual',
-  phi: 12,
-  cII: 19.5,
-  gammaII: 19.1,
-  gammaPrime: 20,
-  m1: 1.1,
-  m2: 1,
-  k: 1.1,
-  zwt: 1,
-  h0Basement: 0,
+  id, name: 'Móng 1', Lx: 2.0, Ly: 2.0, Hf: 0.5, Df: 1.5, colB: 0.4, colH: 0.4,
+  N: 800, Mx: 50, My: 40, Fx: 0, Fy: 0, ex: 0, ey: 0, Rtc: 200,
+  concrete: 'B25', steel: 'CB400-V', a: 50, barsX: 'd12a150', barsY: 'd12a150',
+  gammaFill: 20, pg: 0, Htn: 0, rtcMode: 'manual',
+  phi: 12, cII: 19.5, gammaII: 19.1, gammaPrime: 20, m1: 1.1, m2: 1, k: 1.1, zwt: 1, h0Basement: 0,
 });
