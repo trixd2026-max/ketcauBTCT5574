@@ -98,7 +98,7 @@ export default function FoundationPanel() {
     <>
       <header>
         <div>
-          <h1>Móng đơn BTCT V1.2</h1>
+          <h1>Móng đơn BTCT 5574:2018</h1>
           <p>ΣN · ΣM (FX/FY/ex/ey) · Rtc MongDon · Chọc thủng</p>
         </div>
         <div className="actions">
@@ -111,7 +111,7 @@ export default function FoundationPanel() {
       </header>
 
       <section className="notice">
-        <b>Móng V1.2:</b> ΣN = FZ+Htn·γ·Af · ΣMx = MX−FY·Hf−FZ·ey · ΣMy = MY+FX·Hf+FZ·ex · Rtc (φ,c,m1,m2).
+        ΣN = FZ+Htn·γ·Af · ΣMx = MX−FY·Hf−FZ·ey · ΣMy = MY+FX·Hf+FZ·ex · Rtc (φ,c,m1,m2).
         Tham chiếu TCVN 5574:2018 (đối chiếu MongDon) — chưa chứng nhận full compliance.
       </section>
 

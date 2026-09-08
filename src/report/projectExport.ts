@@ -56,7 +56,7 @@ export function exportProjectExcel(opts: {
     ['Móng', foundations.length],
     [],
     ['Ghi chú', 'Công cụ hỗ trợ. Cột N–M gần đúng. Chưa chứng nhận full TCVN 5574:2018.'],
-    ['Phần mềm', 'tinhketcaubtct2018 · BTCT 5574 V1.3'],
+    ['Phần mềm', 'tinhketcaubtct2018 · BTCT 5574:2018'],
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(info), 'ThongTin');
 

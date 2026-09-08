@@ -194,17 +194,17 @@ export default function App() {
   return (
     <div className="app">
       <aside>
-        <div className="brand">BTCT <span>5574</span></div>
-        <p className="muted">V1.3 · DẦM · CỘT · SÀN · MÓNG · BÁO CÁO</p>
+        <div className="brand">BTCT <span>5574:2018</span></div>
+        <p className="muted">DẦM · CỘT · SÀN · MÓNG · BÁO CÁO</p>
         <button type="button" className={`nav ${module === 'beam' ? 'active' : ''}`} onClick={() => setModule('beam')}>▣&nbsp; Dầm BTCT</button>
         <button type="button" className={`nav ${module === 'column' ? 'active' : ''}`} onClick={() => setModule('column')}>▣&nbsp; Cột BTCT</button>
         <button type="button" className={`nav ${module === 'slab' ? 'active' : ''}`} onClick={() => setModule('slab')}>▣&nbsp; Sàn BTCT</button>
         <button type="button" className={`nav ${module === 'foundation' ? 'active' : ''}`} onClick={() => setModule('foundation')}>▣&nbsp; Móng BTCT</button>
         <button type="button" className={`nav ${module === 'report' ? 'active' : ''}`} onClick={() => setModule('report')}>▣&nbsp; Báo cáo</button>
         <div className="sidefoot">
-          V1.3 · Dầm · Cột · Sàn · Móng · Báo cáo<br />
+          Dầm · Cột · Sàn · Móng · Báo cáo<br />
           N–M / strip gần đúng<br />
-          Chưa khóa chuẩn TCVN
+          TCVN 5574:2018
         </div>
       </aside>
       <main>
@@ -216,7 +216,7 @@ export default function App() {
         <>
         <header>
           <div>
-            <h1>Dầm BTCT V1.2</h1>
+            <h1>Dầm BTCT 5574:2018</h1>
             <p>Uốn · Cắt · Cấu tạo · Nứt · Võng (ước lượng)</p>
           </div>
           <div className="actions">
@@ -232,7 +232,7 @@ export default function App() {
         </header>
 
         <section className="notice">
-          <b>V1.2:</b> L nhịp hỗ trợ 2 chữ số thập phân (vd 4.25). Cốt thép nhập dạng <code>5d18</code> hoặc <code>3d22+2d16</code> → tự tính As (ô As khóa).
+          L nhịp hỗ trợ 2 chữ số thập phân (vd 4.25). Cốt thép nhập dạng <code>5d18</code> hoặc <code>3d22+2d16</code> → tự tính As (ô As khóa).
           Moment SLS mặc định ≈ M<sub>ULS</sub>/1.4 nếu để 0. Nút <b>Excel báo cáo</b> / <b>Thuyết minh PDF</b> xuất toàn bộ danh sách dầm theo mẫu.
         </section>
 
@@ -311,9 +311,9 @@ export default function App() {
               <DecimalField label="Mser+ dài (kNm)" value={selected.MserLongPos ?? 0} step="0.01" onChange={(v) => update('MserLongPos', v)} />
               <Field label="Độ ẩm">
                 <select value={selected.humidity ?? 'mid'} onChange={(e) => update('humidity', e.target.value)}>
-                  <option value="high">>75%</option>
+                  <option value="high">&gt;75%</option>
                   <option value="mid">40–75%</option>
-                  <option value="low"><40%</option>
+                  <option value="low">&lt;40%</option>
                 </select>
               </Field>
               <Field label="Gối tựa">

@@ -57,7 +57,7 @@ export function exportBeamExcel(
     ['Số dầm chưa đạt', items.filter((x) => !x.result.pass).length],
     [],
     ['Ghi chú', 'Công cụ hỗ trợ thiết kế. Kết quả cần KS kiểm tra trước khi đưa vào hồ sơ thi công.'],
-    ['Phần mềm', 'tinhketcaubtct2018 · BTCT 5574 V1.3'],
+    ['Phần mềm', 'tinhketcaubtct2018 · BTCT 5574:2018'],
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(info), 'ThongTin');
 
@@ -226,7 +226,7 @@ export function exportGenericExcel(
     ['Ngày', m.date],
     ['Tiêu chuẩn', m.standard],
     [],
-    ['Phần mềm', 'tinhketcaubtct2018 · BTCT 5574 V1.3'],
+    ['Phần mềm', 'tinhketcaubtct2018 · BTCT 5574:2018'],
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(info), 'ThongTin');
   for (const sh of sheets) {
