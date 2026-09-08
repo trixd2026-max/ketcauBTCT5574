@@ -70,7 +70,7 @@ export default function FoundationPanel() {
   const exportJson = () =>
     download(
       'mong-btct-v1.json',
-      JSON.stringify({ version: 'foundation-v1.0', exportedAt: new Date().toISOString(), foundations: items }, null, 2),
+      JSON.stringify({ version: 'foundation-v1.1', exportedAt: new Date().toISOString(), foundations: items }, null, 2),
       'application/json'
     );
   const importJson = (file: File) => {
@@ -98,8 +98,8 @@ export default function FoundationPanel() {
     <>
       <header>
         <div>
-          <h1>Móng đơn BTCT V1.0</h1>
-          <p>Nền · Chọc thủng · Uốn console</p>
+          <h1>Móng đơn BTCT V1.1</h1>
+          <p>ΣN tự động · Rtc MongDon · Chọc thủng · Uốn console</p>
         </div>
         <div className="actions">
           <input ref={fileRef} type="file" accept=".json" style={{ display: 'none' }}
@@ -111,7 +111,8 @@ export default function FoundationPanel() {
       </header>
 
       <section className="notice">
-        <b>Móng V1.0:</b> p_tb / p_max / p_min · chọc thủng · As console. Danh sách + localStorage + JSON.
+        <b>Móng V1.1:</b> ΣN = FZ+Htn·γ·Af · Rtc tính (φ,c,m1,m2) theo MongDon · p/Nct.
+        Tham chiếu TCVN 5574:2018 (đối chiếu workbook) — chưa chứng nhận full compliance.
       </section>
 
       <div className="workspace">
@@ -125,7 +126,7 @@ export default function FoundationPanel() {
               onClick={() => setSelectedId(f.id)}>
               <span>
                 <b>{f.name}</b>
-                <small>{f.Lx}×{f.Ly}×{f.Hf} · N={fmt(f.N, 0)}</small>
+                <small>{f.Lx}×{f.Ly}×{f.Hf} · FZ={fmt(f.N, 0)}</small>
               </span>
               <span className={`status ${r.pass ? 'pass' : 'fail'}`}>{r.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}</span>
             </button>
@@ -147,10 +148,32 @@ export default function FoundationPanel() {
               <label>Df (m)<input type="number" step="0.01" value={selected.Df} onChange={(e) => setNum('Df', e.target.value)} /></label>
               <label>Cột b (m)<input type="number" step="0.01" value={selected.colB} onChange={(e) => setNum('colB', e.target.value)} /></label>
               <label>Cột h (m)<input type="number" step="0.01" value={selected.colH} onChange={(e) => setNum('colH', e.target.value)} /></label>
-              <label>N (kN)<input type="number" step="0.1" value={selected.N} onChange={(e) => setNum('N', e.target.value)} /></label>
-              <label>Mx (kNm)<input type="number" step="0.1" value={selected.Mx} onChange={(e) => setNum('Mx', e.target.value)} /></label>
-              <label>My (kNm)<input type="number" step="0.1" value={selected.My} onChange={(e) => setNum('My', e.target.value)} /></label>
-              <label>Rtc (kN/m²)<input type="number" step="1" value={selected.Rtc} onChange={(e) => setNum('Rtc', e.target.value)} /></label>
+              <label>FZ cột (kN)<input type="number" step="0.1" value={selected.N} onChange={(e) => setNum('N', e.target.value)} title="Khi Htn&gt;0: ΣN = FZ + Htn·γ'·Af" /></label>
+              <label>Htn (m)<input type="number" step="0.01" value={selected.Htn ?? 0} onChange={(e) => setNum('Htn', e.target.value)} title="Tôn nền — Htn=0 thì N = ΣN nhập trực tiếp" /></label>
+              <label>γ' (kN/m³)<input type="number" step="0.1" value={selected.gammaPrime ?? selected.gammaFill ?? 20} onChange={(e) => setNum('gammaPrime', e.target.value)} /></label>
+              <label>Mx đáy (kNm)<input type="number" step="0.1" value={selected.Mx} onChange={(e) => setNum('Mx', e.target.value)} /></label>
+              <label>My đáy (kNm)<input type="number" step="0.1" value={selected.My} onChange={(e) => setNum('My', e.target.value)} /></label>
+              <label>pg (kN/m²)<input type="number" step="0.1" value={selected.pg ?? 0} onChange={(e) => setNum('pg', e.target.value)} /></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Đất nền · Rtc</legend>
+            <div className="form">
+              <label>Rtc mode
+                <select value={selected.rtcMode ?? 'manual'} onChange={(e) => setStr('rtcMode', e.target.value)}>
+                  <option value="manual">Nhập tay</option>
+                  <option value="calc">Tính (MongDon)</option>
+                </select>
+              </label>
+              <label>Rtc nhập (kN/m²)<input type="number" step="1" value={selected.Rtc} onChange={(e) => setNum('Rtc', e.target.value)} disabled={(selected.rtcMode ?? 'manual') === 'calc'} /></label>
+              <label>φ (°)<input type="number" step="0.1" value={selected.phi ?? 12} onChange={(e) => setNum('phi', e.target.value)} /></label>
+              <label>cII (kN/m²)<input type="number" step="0.1" value={selected.cII ?? 19.5} onChange={(e) => setNum('cII', e.target.value)} /></label>
+              <label>γII (kN/m³)<input type="number" step="0.1" value={selected.gammaII ?? 19.1} onChange={(e) => setNum('gammaII', e.target.value)} /></label>
+              <label>m1<input type="number" step="0.01" value={selected.m1 ?? 1.1} onChange={(e) => setNum('m1', e.target.value)} /></label>
+              <label>m2<input type="number" step="0.01" value={selected.m2 ?? 1} onChange={(e) => setNum('m2', e.target.value)} /></label>
+              <label>k<input type="number" step="0.01" value={selected.k ?? 1.1} onChange={(e) => setNum('k', e.target.value)} /></label>
+              <label>ZWT (m)<input type="number" step="0.1" value={selected.zwt ?? 1} onChange={(e) => setNum('zwt', e.target.value)} /></label>
+              <label>h0 hầm (m)<input type="number" step="0.1" value={selected.h0Basement ?? 0} onChange={(e) => setNum('h0Basement', e.target.value)} /></label>
             </div>
           </fieldset>
           <fieldset>
@@ -173,6 +196,8 @@ export default function FoundationPanel() {
             <span className={`status ${result.pass ? 'pass' : 'fail'} large`}>{result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}</span>
           </div>
           <section className="result-section">
+            <div className="result"><span>ΣN (dùng tính p)</span><strong>{fmt(result.sigmaN, 1)} kN</strong></div>
+            <div className="result"><span>Rtc dùng</span><strong>{fmt(result.rtcUsed, 1)} kN/m²{result.bearing ? ` (A=${result.bearing.A}, B=${result.bearing.B}, D=${result.bearing.D})` : ''}</strong></div>
             <div className="result"><span>p_tb / max / min</span><strong>{fmt(result.pAvg, 1)} / {fmt(result.pMax, 1)} / {fmt(result.pMin, 1)}</strong></div>
             <div className="result"><span>Nct / Nkt</span><strong>{fmt(result.punching.Nct, 1)} / {fmt(result.punching.Nkt, 1)}</strong></div>
             <div className="checks">
@@ -190,7 +215,7 @@ export default function FoundationPanel() {
       <section className="summary card">
         <div className="card-title">
           <h2>Bảng tổng hợp móng</h2>
-          <small>localStorage · Import/Export JSON</small>
+          <small>localStorage · Import/Export JSON · Tham chiếu TCVN 5574:2018</small>
         </div>
         <div className="table-wrap">
           <table>
