@@ -1,7 +1,7 @@
 /**
- * Tab Báo cáo — xuất Excel / PDF / Word thuyết minh tập trung cho Dầm · Cột · Sàn · Móng.
+ * Tab Báo cáo — Excel / PDF / Word + Import workbook + đồng bộ localStorage.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { calcBeam, createDefaultBeam, type BeamInput } from '../engine/beam';
 import { calcColumn, createDefaultColumn, parseColumnBars, type ColumnInput } from '../engine/column';
 import { calcSlab, createDefaultSlab, type SlabInput } from '../engine/slab';
@@ -13,14 +13,9 @@ import { exportReportWord, exportProjectWord } from '../report/wordReport';
 import { beamThuyetMinhDoc } from '../report/thuyetMinhBeam';
 import { columnThuyetMinhDoc, slabThuyetMinhDoc, foundationThuyetMinhDoc } from '../report/thuyetMinhMulti';
 import { importWorkbookFile } from '../report/excelImport';
+import { subscribeStorage, saveList, STORAGE_KEYS } from '../report/storageSync';
 
-const KEYS = {
-  beams: 'ketcau-btct-5574-beams-v1',
-  columns: 'ketcau-btct-5574-columns-v1',
-  slabs: 'ketcau-btct-5574-slabs-v1',
-  foundations: 'ketcau-btct-5574-foundations-v1',
-  meta: 'ketcau-btct-5574-report-meta-v1',
-};
+const KEYS = STORAGE_KEYS;
 
 type Scope = { beams: boolean; columns: boolean; slabs: boolean; foundations: boolean };
 
@@ -39,25 +34,21 @@ function loadBeams(): BeamInput[] {
   if (!Array.isArray(raw) || !raw.length) return [];
   return raw.map((b) => ({ ...createDefaultBeam(), ...(b as BeamInput) }));
 }
-
 function loadColumns(): ColumnInput[] {
   const raw = loadJson<unknown[]>(KEYS.columns, []);
   if (!Array.isArray(raw) || !raw.length) return [];
   return raw.map((c) => ({ ...createDefaultColumn(), ...(c as ColumnInput) }));
 }
-
 function loadSlabs(): SlabInput[] {
   const raw = loadJson<unknown[]>(KEYS.slabs, []);
   if (!Array.isArray(raw) || !raw.length) return [];
   return raw.map((s) => ({ ...createDefaultSlab(), ...(s as SlabInput) }));
 }
-
 function loadFoundations(): FoundationInput[] {
   const raw = loadJson<unknown[]>(KEYS.foundations, []);
   if (!Array.isArray(raw) || !raw.length) return [];
   return raw.map((f) => ({ ...createDefaultFoundation(), ...(f as FoundationInput) }));
 }
-
 function loadMeta(): ProjectMeta {
   return loadJson<ProjectMeta>(KEYS.meta, {
     projectName: 'Dự án mẫu',
@@ -69,14 +60,11 @@ function loadMeta(): ProjectMeta {
 
 export default function ReportPanel() {
   const [meta, setMeta] = useState<ProjectMeta>(loadMeta);
-  const [scope, setScope] = useState<Scope>({
-    beams: true,
-    columns: true,
-    slabs: true,
-    foundations: true,
-  });
+  const [scope, setScope] = useState<Scope>({ beams: true, columns: true, slabs: true, foundations: true });
   const [tick, setTick] = useState(0);
   const [importMsg, setImportMsg] = useState('');
+
+  useEffect(() => subscribeStorage(() => setTick((x) => x + 1)), []);
 
   const data = useMemo(() => {
     void tick;
@@ -84,7 +72,6 @@ export default function ReportPanel() {
     const columns = loadColumns();
     const slabs = loadSlabs();
     const foundations = loadFoundations();
-
     const beamResults = beams.map((beam) => ({ beam, result: calcBeam(beam) }));
     const columnResults = columns.map((col) => {
       const p = parseColumnBars(col.bars ?? '');
@@ -93,26 +80,21 @@ export default function ReportPanel() {
     });
     const slabResults = slabs.map((slab) => ({ slab, result: calcSlab(slab) }));
     const foundationResults = foundations.map((f) => ({ f, result: calcFoundation(f) }));
-
     return { beamResults, columnResults, slabResults, foundationResults };
   }, [tick]);
 
   const saveMeta = (patch: Partial<ProjectMeta>) => {
     const next = { ...meta, ...patch };
     setMeta(next);
-    localStorage.setItem(KEYS.meta, JSON.stringify(next));
+    saveList(KEYS.meta, next);
   };
 
   const counts = {
     beams: { n: data.beamResults.length, pass: data.beamResults.filter((x) => x.result.pass).length },
     columns: { n: data.columnResults.length, pass: data.columnResults.filter((x) => x.result.pass).length },
     slabs: { n: data.slabResults.length, pass: data.slabResults.filter((x) => x.result.pass).length },
-    foundations: {
-      n: data.foundationResults.length,
-      pass: data.foundationResults.filter((x) => x.result.pass).length,
-    },
+    foundations: { n: data.foundationResults.length, pass: data.foundationResults.filter((x) => x.result.pass).length },
   };
-
   const totalN =
     (scope.beams ? counts.beams.n : 0) +
     (scope.columns ? counts.columns.n : 0) +
@@ -124,105 +106,69 @@ export default function ReportPanel() {
     (scope.slabs ? counts.slabs.pass : 0) +
     (scope.foundations ? counts.foundations.pass : 0);
 
-  const exportExcelAll = () => {
-    if (scope.beams && data.beamResults.length) exportBeamExcel(data.beamResults, meta);
-    if (scope.columns && data.columnResults.length) {
-      const summary = data.columnResults.map(({ col, result: r }) => ({
-        Cột: col.name,
-        'b×h': `${col.b}×${col.h}`,
-        N: col.N,
-        'N-M': r.interaction.toFixed(3),
-        KQ: r.pass ? 'ĐẠT' : 'KĐ',
-      }));
-      exportGenericExcel('THUYẾT MINH TÍNH TOÁN CỘT BÊ TÔNG CỐT THÉP', 'ThuyetMinh-Cot-BTCT', [
-        { name: 'TongHop', rows: summary },
-      ], meta);
-    }
-    if (scope.slabs && data.slabResults.length) {
-      const summary = data.slabResults.map(({ slab, result: r }) => ({
-        Sàn: slab.name,
-        h: slab.h,
-        KQ: r.pass ? 'ĐẠT' : 'KĐ',
-      }));
-      exportGenericExcel('THUYẾT MINH TÍNH TOÁN SÀN BÊ TÔNG CỐT THÉP', 'ThuyetMinh-San-BTCT', [
-        { name: 'TongHop', rows: summary },
-      ], meta);
-    }
-    if (scope.foundations && data.foundationResults.length) {
-      const summary = data.foundationResults.map(({ f, result: r }) => ({
-        Móng: f.name,
-        'Lx×Ly': `${f.Lx}×${f.Ly}`,
-        KQ: r.pass ? 'ĐẠT' : 'KĐ',
-      }));
-      exportGenericExcel('THUYẾT MINH TÍNH TOÁN MÓNG ĐƠN BÊ TÔNG CỐT THÉP', 'ThuyetMinh-Mong-BTCT', [
-        { name: 'TongHop', rows: summary },
-      ], meta);
+  const onImport = async (file: File) => {
+    try {
+      const res = await importWorkbookFile(file);
+      if (res.beams.length) saveList(KEYS.beams, res.beams);
+      if (res.columns.length) saveList(KEYS.columns, res.columns);
+      if (res.slabs.length) saveList(KEYS.slabs, res.slabs);
+      if (res.foundations.length) saveList(KEYS.foundations, res.foundations);
+      setImportMsg(res.messages.join(' · ') || `Import OK`);
+      setTick((t) => t + 1);
+    } catch (e) {
+      setImportMsg('Import lỗi: ' + (e instanceof Error ? e.message : String(e)));
     }
   };
 
   const exportProjectAllExcel = () => {
-    const d = data;
     exportProjectExcel({
       meta,
-      beams: scope.beams ? d.beamResults : [],
-      columns: scope.columns
-        ? d.columnResults.map((x) => ({
-            col: x.col,
-            result: x.result,
-            asLabel: x.col.bars || '',
-          }))
-        : [],
-      slabs: scope.slabs ? d.slabResults : [],
-      foundations: scope.foundations ? d.foundationResults : [],
+      beams: scope.beams ? data.beamResults : [],
+      columns: scope.columns ? data.columnResults.map((x) => ({ col: x.col, result: x.result, asLabel: x.col.bars || '' })) : [],
+      slabs: scope.slabs ? data.slabResults : [],
+      foundations: scope.foundations ? data.foundationResults : [],
     });
   };
 
   const exportProjectAllPdf = () => {
-    const d = data;
     const sections: { title: string; rows: { name: string; size: string; pass: boolean; detail?: string }[] }[] = [];
-    if (scope.beams) {
+    if (scope.beams)
       sections.push({
         title: 'Dầm BTCT',
-        rows: d.beamResults.map(({ beam, result }) => ({
+        rows: data.beamResults.map(({ beam, result }) => ({
           name: beam.name,
-          size: `${beam.b}×${beam.h} mm` + (beam.L ? ` · L=${beam.L}m` : ''),
+          size: `${beam.b}×${beam.h} mm`,
           pass: result.pass,
-          detail: result.pass ? '' : 'KĐ',
         })),
       });
-    }
-    if (scope.columns) {
+    if (scope.columns)
       sections.push({
         title: 'Cột BTCT',
-        rows: d.columnResults.map(({ col, result }) => ({
+        rows: data.columnResults.map(({ col, result }) => ({
           name: col.name,
           size: `${col.b}×${col.h} mm`,
           pass: result.pass,
-          detail: `N–M≈${result.interaction.toFixed(3)} · vd=${result.vd.toFixed(3)}`,
+          detail: `N–M≈${result.interaction.toFixed(3)}`,
         })),
       });
-    }
-    if (scope.slabs) {
+    if (scope.slabs)
       sections.push({
         title: 'Sàn BTCT',
-        rows: d.slabResults.map(({ slab, result }) => ({
+        rows: data.slabResults.map(({ slab, result }) => ({
           name: slab.name,
-          size: `h=${slab.h} · ${slab.Lx}×${slab.Ly} m`,
+          size: `h=${slab.h}`,
           pass: result.pass,
         })),
       });
-    }
-    if (scope.foundations) {
+    if (scope.foundations)
       sections.push({
         title: 'Móng đơn BTCT',
-        rows: d.foundationResults.map(({ f, result }) => ({
+        rows: data.foundationResults.map(({ f, result }) => ({
           name: f.name,
-          size: `${f.Lx}×${f.Ly}×${f.Hf} m`,
+          size: `${f.Lx}×${f.Ly}`,
           pass: result.pass,
-          detail: `p_max=${result.pMax.toFixed(0)} · Nct=${result.punching.Nct.toFixed(0)}`,
         })),
       });
-    }
     openProjectReportPdf({
       meta: {
         projectName: meta.projectName || 'Dự án',
@@ -234,85 +180,28 @@ export default function ReportPanel() {
     });
   };
 
-  const exportPdfBeams = () => {
-    if (!data.beamResults.length) return;
-    openReportPdf(beamThuyetMinhDoc(data.beamResults, meta));
-  };
-  const exportPdfColumns = () => {
-    if (!data.columnResults.length) return;
-    openReportPdf(columnThuyetMinhDoc(data.columnResults, meta));
-  };
-  const exportPdfSlabs = () => {
-    if (!data.slabResults.length) return;
-    openReportPdf(slabThuyetMinhDoc(data.slabResults, meta));
-  };
-  const exportPdfFoundations = () => {
-    if (!data.foundationResults.length) return;
-    openReportPdf(foundationThuyetMinhDoc(data.foundationResults, meta));
-  };
-
-  const exportWordBeams = () => {
-    if (!data.beamResults.length) return;
-    void exportReportWord(beamThuyetMinhDoc(data.beamResults, meta), 'ThuyetMinh-Dam-BTCT.docx');
-  };
-  const exportWordColumns = () => {
-    if (!data.columnResults.length) return;
-    void exportReportWord(columnThuyetMinhDoc(data.columnResults, meta), 'ThuyetMinh-Cot-BTCT.docx');
-  };
-  const exportWordSlabs = () => {
-    if (!data.slabResults.length) return;
-    void exportReportWord(slabThuyetMinhDoc(data.slabResults, meta), 'ThuyetMinh-San-BTCT.docx');
-  };
-  const exportWordFoundations = () => {
-    if (!data.foundationResults.length) return;
-    void exportReportWord(foundationThuyetMinhDoc(data.foundationResults, meta), 'ThuyetMinh-Mong-BTCT.docx');
-  };
-
   const exportProjectAllWord = () => {
-    const d = data;
     const sections: { title: string; rows: { name: string; size: string; pass: boolean; detail?: string }[] }[] = [];
-    if (scope.beams) {
+    if (scope.beams)
       sections.push({
-        title: 'Dầm BTCT',
-        rows: d.beamResults.map(({ beam, result }) => ({
-          name: beam.name,
-          size: `${beam.b}×${beam.h} mm` + (beam.L ? ` · L=${beam.L}m` : ''),
-          pass: result.pass,
-        })),
+        title: 'Dầm',
+        rows: data.beamResults.map(({ beam, result }) => ({ name: beam.name, size: `${beam.b}×${beam.h}`, pass: result.pass })),
       });
-    }
-    if (scope.columns) {
+    if (scope.columns)
       sections.push({
-        title: 'Cột BTCT',
-        rows: d.columnResults.map(({ col, result }) => ({
-          name: col.name,
-          size: `${col.b}×${col.h} mm`,
-          pass: result.pass,
-          detail: `N–M≈${result.interaction.toFixed(3)}`,
-        })),
+        title: 'Cột',
+        rows: data.columnResults.map(({ col, result }) => ({ name: col.name, size: `${col.b}×${col.h}`, pass: result.pass })),
       });
-    }
-    if (scope.slabs) {
+    if (scope.slabs)
       sections.push({
-        title: 'Sàn BTCT',
-        rows: d.slabResults.map(({ slab, result }) => ({
-          name: slab.name,
-          size: `h=${slab.h} · ${slab.Lx}×${slab.Ly} m`,
-          pass: result.pass,
-        })),
+        title: 'Sàn',
+        rows: data.slabResults.map(({ slab, result }) => ({ name: slab.name, size: `h=${slab.h}`, pass: result.pass })),
       });
-    }
-    if (scope.foundations) {
+    if (scope.foundations)
       sections.push({
-        title: 'Móng đơn BTCT',
-        rows: d.foundationResults.map(({ f, result }) => ({
-          name: f.name,
-          size: `${f.Lx}×${f.Ly}×${f.Hf} m`,
-          pass: result.pass,
-          detail: `p_max=${result.pMax.toFixed(0)}`,
-        })),
+        title: 'Móng',
+        rows: data.foundationResults.map(({ f, result }) => ({ name: f.name, size: `${f.Lx}×${f.Ly}`, pass: result.pass })),
       });
-    }
     void exportProjectWord({
       meta: {
         projectName: meta.projectName || 'Dự án',
@@ -324,26 +213,12 @@ export default function ReportPanel() {
     });
   };
 
-  const onImport = async (file: File) => {
-    try {
-      const res = await importWorkbookFile(file);
-      if (res.beams.length) localStorage.setItem(KEYS.beams, JSON.stringify(res.beams));
-      if (res.columns.length) localStorage.setItem(KEYS.columns, JSON.stringify(res.columns));
-      if (res.slabs.length) localStorage.setItem(KEYS.slabs, JSON.stringify(res.slabs));
-      if (res.foundations.length) localStorage.setItem(KEYS.foundations, JSON.stringify(res.foundations));
-      setImportMsg(res.messages.join(' · ') || `Import OK: ${res.beams.length} dầm, ${res.columns.length} cột, ${res.slabs.length} sàn, ${res.foundations.length} móng`);
-      setTick((t) => t + 1);
-    } catch (e) {
-      setImportMsg('Import lỗi: ' + (e instanceof Error ? e.message : String(e)));
-    }
-  };
-
   return (
     <>
       <header>
         <div>
           <h1>Báo cáo · Hồ sơ dự án</h1>
-          <p>Excel / PDF / Word hồ sơ dự án · Import TongHop · Dầm · Cột · Sàn · Móng</p>
+          <p>Excel / PDF / Word · Import TongHop/Design · Đồng bộ localStorage</p>
         </div>
         <div className="actions">
           <label className="btn">
@@ -359,21 +234,14 @@ export default function ReportPanel() {
               }}
             />
           </label>
-          <button type="button" className="primary" onClick={exportProjectAllExcel}>
-            Excel hồ sơ dự án
-          </button>
-          <button type="button" className="primary" onClick={exportProjectAllPdf}>
-            PDF hồ sơ dự án
-          </button>
-          <button type="button" className="primary" onClick={exportProjectAllWord}>
-            Word hồ sơ dự án
-          </button>
+          <button type="button" className="primary" onClick={exportProjectAllExcel}>Excel hồ sơ</button>
+          <button type="button" className="primary" onClick={exportProjectAllPdf}>PDF hồ sơ</button>
+          <button type="button" className="primary" onClick={exportProjectAllWord}>Word hồ sơ</button>
         </div>
       </header>
 
       <section className="notice">
-        Điền thông tin dự án → chọn phạm vi → xuất Excel / PDF / Word hồ sơ gộp hoặc TM từng module.
-        Hỗ trợ Import Excel/JSON (sheet TongHop). Cột N–M gần đúng.
+        Import Excel thật (TongHop/Design · Beam.xlsm / MongDon). Đồng bộ localStorage với các tab.
         {importMsg ? <div style={{ marginTop: 8 }}>{importMsg}</div> : null}
       </section>
 
@@ -396,19 +264,15 @@ export default function ReportPanel() {
           <label><input type="checkbox" checked={scope.foundations} onChange={(e) => setScope((s) => ({ ...s, foundations: e.target.checked }))} /> Móng ({counts.foundations.n})</label>
         </div>
         <div className="actions" style={{ marginTop: 12 }}>
-          <button type="button" className="primary" onClick={exportProjectAllExcel}>Excel hồ sơ dự án</button>
-          <button type="button" className="primary" onClick={exportProjectAllPdf}>PDF hồ sơ dự án</button>
-          <button type="button" className="primary" onClick={exportProjectAllWord}>Word hồ sơ dự án</button>
-          <button type="button" onClick={exportExcelAll}>Excel từng module</button>
-          <button type="button" onClick={exportPdfBeams} disabled={!counts.beams.n}>PDF TM Dầm</button>
-          <button type="button" onClick={exportPdfColumns} disabled={!counts.columns.n}>PDF TM Cột</button>
-          <button type="button" onClick={exportPdfSlabs} disabled={!counts.slabs.n}>PDF TM Sàn</button>
-          <button type="button" onClick={exportPdfFoundations} disabled={!counts.foundations.n}>PDF TM Móng</button>
-          <button type="button" onClick={exportWordBeams} disabled={!counts.beams.n}>Word TM Dầm</button>
-          <button type="button" onClick={exportWordColumns} disabled={!counts.columns.n}>Word TM Cột</button>
-          <button type="button" onClick={exportWordSlabs} disabled={!counts.slabs.n}>Word TM Sàn</button>
-          <button type="button" onClick={exportWordFoundations} disabled={!counts.foundations.n}>Word TM Móng</button>
-          <button type="button" onClick={() => setTick((t) => t + 1)}>Làm mới từ localStorage</button>
+          <button type="button" className="primary" onClick={exportProjectAllExcel}>Excel hồ sơ</button>
+          <button type="button" className="primary" onClick={exportProjectAllPdf}>PDF hồ sơ</button>
+          <button type="button" className="primary" onClick={exportProjectAllWord}>Word hồ sơ</button>
+          <button type="button" onClick={() => data.beamResults.length && openReportPdf(beamThuyetMinhDoc(data.beamResults, meta))} disabled={!counts.beams.n}>PDF TM Dầm</button>
+          <button type="button" onClick={() => data.columnResults.length && openReportPdf(columnThuyetMinhDoc(data.columnResults, meta))} disabled={!counts.columns.n}>PDF TM Cột</button>
+          <button type="button" onClick={() => data.slabResults.length && openReportPdf(slabThuyetMinhDoc(data.slabResults, meta))} disabled={!counts.slabs.n}>PDF TM Sàn</button>
+          <button type="button" onClick={() => data.foundationResults.length && openReportPdf(foundationThuyetMinhDoc(data.foundationResults, meta))} disabled={!counts.foundations.n}>PDF TM Móng</button>
+          <button type="button" onClick={() => data.beamResults.length && void exportReportWord(beamThuyetMinhDoc(data.beamResults, meta), 'ThuyetMinh-Dam.docx')} disabled={!counts.beams.n}>Word TM Dầm</button>
+          <button type="button" onClick={() => setTick((t) => t + 1)}>Làm mới</button>
         </div>
       </section>
 
@@ -418,24 +282,20 @@ export default function ReportPanel() {
           <table>
             <thead><tr><th>Loại</th><th>Tên</th><th>KQ</th></tr></thead>
             <tbody>
-              {scope.beams &&
-                data.beamResults.map(({ beam, result }) => (
-                  <tr key={beam.id}><td>Dầm</td><td>{beam.name}</td><td><span className={`status ${result.pass ? 'pass' : 'fail'}`}>{result.pass ? 'ĐẠT' : 'KĐ'}</span></td></tr>
-                ))}
-              {scope.columns &&
-                data.columnResults.map(({ col, result }) => (
-                  <tr key={col.id}><td>Cột</td><td>{col.name}</td><td><span className={`status ${result.pass ? 'pass' : 'fail'}`}>{result.pass ? 'ĐẠT' : 'KĐ'}</span></td></tr>
-                ))}
-              {scope.slabs &&
-                data.slabResults.map(({ slab, result }) => (
-                  <tr key={slab.id}><td>Sàn</td><td>{slab.name}</td><td><span className={`status ${result.pass ? 'pass' : 'fail'}`}>{result.pass ? 'ĐẠT' : 'KĐ'}</span></td></tr>
-                ))}
-              {scope.foundations &&
-                data.foundationResults.map(({ f, result }) => (
-                  <tr key={f.id}><td>Móng</td><td>{f.name}</td><td><span className={`status ${result.pass ? 'pass' : 'fail'}`}>{result.pass ? 'ĐẠT' : 'KĐ'}</span></td></tr>
-                ))}
+              {scope.beams && data.beamResults.map(({ beam, result }) => (
+                <tr key={beam.id}><td>Dầm</td><td>{beam.name}</td><td><span className={`status ${result.pass ? 'pass' : 'fail'}`}>{result.pass ? 'ĐẠT' : 'KĐ'}</span></td></tr>
+              ))}
+              {scope.columns && data.columnResults.map(({ col, result }) => (
+                <tr key={col.id}><td>Cột</td><td>{col.name}</td><td><span className={`status ${result.pass ? 'pass' : 'fail'}`}>{result.pass ? 'ĐẠT' : 'KĐ'}</span></td></tr>
+              ))}
+              {scope.slabs && data.slabResults.map(({ slab, result }) => (
+                <tr key={slab.id}><td>Sàn</td><td>{slab.name}</td><td><span className={`status ${result.pass ? 'pass' : 'fail'}`}>{result.pass ? 'ĐẠT' : 'KĐ'}</span></td></tr>
+              ))}
+              {scope.foundations && data.foundationResults.map(({ f, result }) => (
+                <tr key={f.id}><td>Móng</td><td>{f.name}</td><td><span className={`status ${result.pass ? 'pass' : 'fail'}`}>{result.pass ? 'ĐẠT' : 'KĐ'}</span></td></tr>
+              ))}
               {!totalN && (
-                <tr><td colSpan={3}>Chưa có cấu kiện trong localStorage — nhập ở các tab Dầm/Cột/Sàn/Móng hoặc Import Excel.</td></tr>
+                <tr><td colSpan={3}>Chưa có cấu kiện — nhập ở tab Dầm/Cột/Sàn/Móng hoặc Import Excel.</td></tr>
               )}
             </tbody>
           </table>
