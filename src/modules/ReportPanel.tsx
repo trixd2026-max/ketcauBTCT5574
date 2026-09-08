@@ -7,8 +7,10 @@ import { calcColumn, createDefaultColumn, parseColumnBars, type ColumnInput } fr
 import { calcSlab, createDefaultSlab, type SlabInput } from '../engine/slab';
 import { calcFoundation, createDefaultFoundation, type FoundationInput } from '../engine/foundation';
 import { exportBeamExcel, exportGenericExcel, type ProjectMeta } from '../report/excelReport';
-import { openReportPdf, columnReportDoc, slabReportDoc, foundationReportDoc } from '../report/reportPdf';
+import { openReportPdf } from '../report/reportPdf';
 import { beamThuyetMinhDoc } from '../report/thuyetMinhBeam';
+import { columnThuyetMinhDoc, slabThuyetMinhDoc, foundationThuyetMinhDoc } from '../report/thuyetMinhMulti';
+import { importWorkbookFile } from '../report/excelImport';
 
 const KEYS = {
   beams: 'ketcau-btct-5574-beams-v1',
@@ -204,31 +206,42 @@ export default function ReportPanel() {
     openReportPdf(beamThuyetMinhDoc(data.beamResults, meta));
   };
 
-  const exportPdfFirstColumn = () => {
-    const item = data.columnResults[0];
-    if (!item) {
+  const exportPdfColumns = () => {
+    if (!data.columnResults.length) {
       alert('Chưa có cột.');
       return;
     }
-    openReportPdf(columnReportDoc(item.col, item.result));
+    openReportPdf(columnThuyetMinhDoc(data.columnResults, meta));
   };
 
-  const exportPdfFirstSlab = () => {
-    const item = data.slabResults[0];
-    if (!item) {
+  const exportPdfSlabs = () => {
+    if (!data.slabResults.length) {
       alert('Chưa có sàn.');
       return;
     }
-    openReportPdf(slabReportDoc(item.slab, item.result));
+    openReportPdf(slabThuyetMinhDoc(data.slabResults, meta));
   };
 
-  const exportPdfFirstFoundation = () => {
-    const item = data.foundationResults[0];
-    if (!item) {
+  const exportPdfFoundations = () => {
+    if (!data.foundationResults.length) {
       alert('Chưa có móng.');
       return;
     }
-    openReportPdf(foundationReportDoc(item.f, item.result));
+    openReportPdf(foundationThuyetMinhDoc(data.foundationResults, meta));
+  };
+
+  const onImportWorkbook = async (file: File) => {
+    try {
+      const res = await importWorkbookFile(file);
+      if (res.beams.length) localStorage.setItem(KEYS.beams, JSON.stringify(res.beams));
+      if (res.columns.length) localStorage.setItem(KEYS.columns, JSON.stringify(res.columns));
+      if (res.slabs.length) localStorage.setItem(KEYS.slabs, JSON.stringify(res.slabs));
+      if (res.foundations.length) localStorage.setItem(KEYS.foundations, JSON.stringify(res.foundations));
+      setTick((x) => x + 1);
+      alert(res.messages.join('\n') || 'Import xong.');
+    } catch (e) {
+      alert('Import thất bại: ' + (e instanceof Error ? e.message : String(e)));
+    }
   };
 
   return (
@@ -250,8 +263,8 @@ export default function ReportPanel() {
 
       <section className="notice">
         <b>Tab Báo cáo:</b> đọc danh sách cấu kiện từ localStorage (các tab Dầm/Cột/Sàn/Móng).
-        Điền thông tin dự án → chọn phạm vi → xuất Excel (nhiều sheet) hoặc PDF thuyết minh.
-        Chưa khẳng định tuân thủ đầy đủ TCVN 5574:2018.
+        Điền thông tin dự án → chọn phạm vi → xuất Excel / PDF TM đa cấu kiện.
+        Hỗ trợ Import Excel/JSON (sheet TongHop). Chưa khẳng định tuân thủ đầy đủ TCVN 5574:2018.
       </section>
 
       <div className="workspace" style={{ gridTemplateColumns: '1fr 1fr' }}>
@@ -362,15 +375,28 @@ export default function ReportPanel() {
             <button type="button" onClick={exportPdfBeams} disabled={!counts.beams.n}>
               PDF thuyết minh Dầm
             </button>
-            <button type="button" onClick={exportPdfFirstColumn} disabled={!counts.columns.n}>
-              PDF Cột (1)
+            <button type="button" onClick={exportPdfColumns} disabled={!counts.columns.n}>
+              PDF TM Cột
             </button>
-            <button type="button" onClick={exportPdfFirstSlab} disabled={!counts.slabs.n}>
-              PDF Sàn (1)
+            <button type="button" onClick={exportPdfSlabs} disabled={!counts.slabs.n}>
+              PDF TM Sàn
             </button>
-            <button type="button" onClick={exportPdfFirstFoundation} disabled={!counts.foundations.n}>
-              PDF Móng (1)
+            <button type="button" onClick={exportPdfFoundations} disabled={!counts.foundations.n}>
+              PDF TM Móng
             </button>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <span className="btn-like">Import Excel/JSON</span>
+              <input
+                type="file"
+                accept=".xlsx,.xls,.xlsm,.json"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void onImportWorkbook(f);
+                  e.target.value = '';
+                }}
+              />
+            </label>
           </div>
         </section>
       </div>
