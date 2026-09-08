@@ -90,7 +90,7 @@ export function beamThuyetMinhDoc(
         },
         {
           label: 'Cắt',
-          value: `Q=${fmt(sh.qDemand)} kN; Qbt=${fmt(sh.qbt)}; Qb+Qsw=${fmt(sh.qResistance)}; đai ${daiTxt(beam.stirrupLegs, beam.stirrupDia, beam.stirrupSpacing)} (s,max=${fmt(sh.sMax, 0)} mm).`,
+          value: `Q=${fmt(sh.qDemand)} kN; Qbt=${fmt(sh.qbt)}; Qb=${fmt(sh.qB)}; Qsw=${fmt(sh.qSw)}; Qb+Qsw=${fmt(sh.qResistance)}; Asw=${fmt(sh.stirrupArea, 1)} mm²; đai ${daiTxt(beam.stirrupLegs, beam.stirrupDia, beam.stirrupSpacing)}; s/s,max=${beam.stirrupSpacing}/${fmt(sh.sMax, 0)} mm.`,
         },
         {
           label: 'Nứt / Võng',
