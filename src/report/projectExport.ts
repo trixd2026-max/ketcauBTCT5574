@@ -7,6 +7,7 @@ import type { ColumnInput, ColumnResult } from '../engine/column';
 import type { SlabInput, SlabResult } from '../engine/slab';
 import type { FoundationInput, FoundationResult } from '../engine/foundation';
 import type { ProjectMeta } from './excelReport';
+import { openHtmlReport, PRINT_PAGE_CSS } from './openHtmlReport';
 
 const status = (ok: boolean) => (ok ? 'ĐẠT' : 'KHÔNG ĐẠT');
 
@@ -145,7 +146,7 @@ th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f3f4f
 .ok{color:#047857;font-weight:600}.fail{color:#b91c1c;font-weight:600}
 .meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin:12px 0 20px;font-size:0.9rem}
 .note{background:#fffbeb;border:1px solid #fbbf24;padding:10px;border-radius:6px;font-size:0.85rem;margin:16px 0}
-@media print{body{margin:0;max-width:none}}
+${PRINT_PAGE_CSS}
 </style></head><body>
 <h1>THUYẾT MINH TÍNH TOÁN BTCT — HỒ SƠ DỰ ÁN</h1>
 <div class="meta">
@@ -156,25 +157,11 @@ th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}th{background:#f3f4f
 <div class="note">⚠ Cột: N–M <b>gần đúng</b> (không thay VBA Column.xlsm). Móng: đối chiếu MongDon.xlsm. Chưa full compliance TCVN 5574:2018.</div>
 ${body}
 <p style="margin-top:32px;font-size:0.85rem;color:#666">In → Lưu PDF · tinhketcaubtct2018</p>
-<script>window.onload=()=>{try{window.print()}catch(e){}}</script>
 </body></html>`;
 }
 
 export function openProjectReportPdf(opts: Parameters<typeof buildProjectReportHtml>[0]): void {
   const html = buildProjectReportHtml(opts);
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const w = window.open(url, '_blank');
-  if (w) {
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-    return;
-  }
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `hoso-btct-${Date.now()}.html`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 10000);
-  alert('Trình duyệt chặn cửa sổ mới — đã tải file HTML. Mở file rồi In → Lưu PDF.');
+  const name = `hoso-btct-${(opts.meta.projectName || 'du-an').replace(/\s+/g, '_')}.html`;
+  openHtmlReport(html, name);
 }
