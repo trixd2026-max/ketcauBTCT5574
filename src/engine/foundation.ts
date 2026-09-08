@@ -1,6 +1,12 @@
 /**
  * Móng đơn BTCT — bám MongDon.xlsm (Design_MongDon_ALL):
- * p_tb / p_max / p_min, chọc thủng Nct/Nkt, uốn console As.
+ *   p = N/Af ± |Mx|/Wx ± |My|/Wy + γ·Df + pg
+ *   Nct = p_max · Act ;  Nkt = 0.75 · Rbt · um · h0 · 1000
+ *   Wx = Lx·Ly²/6 ; Wy = Ly·Lx²/6
+ *
+ * N, Mx, My: lực/moment tại đáy móng (ΣN, ΣMx, ΣMy đã quy đổi —
+ *   ΣN = FZ + Htn·γ·Af ; ΣMx = MX − FY·Hf − FZ·ey ; …).
+ * Cột giả định tâm (console đều). Lệch tâm cột: nhập cx1/cx2/cy1/cy2.
  * Chưa khẳng định tuân thủ đầy đủ TCVN 5574:2018.
  */
 import { getConcrete, getSteel } from './materials';
@@ -25,6 +31,11 @@ export type FoundationInput = {
   barsY?: string;
   gammaFill?: number;
   pg?: number;
+  /** Console mép cột→mép móng (m). Bỏ trống = cột tâm. */
+  cx1?: number;
+  cx2?: number;
+  cy1?: number;
+  cy2?: number;
 };
 
 export type Check = { pass: boolean; message: string };
@@ -101,14 +112,20 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
 
   const ho = Math.max(Hf - a_mm / 1000, 0.05);
 
-  const cx1 = Math.max((Lx - colB) / 2, 0);
-  const cy1 = Math.max((Ly - colH) / 2, 0);
+  // Console: ưu tiên nhập cx/cy (MongDon); mặc định cột tâm
+  const cx1 = input.cx1 != null ? Math.max(input.cx1, 0) : Math.max((Lx - colB) / 2, 0);
+  const cx2 = input.cx2 != null ? Math.max(input.cx2, 0) : cx1;
+  const cy1 = input.cy1 != null ? Math.max(input.cy1, 0) : Math.max((Ly - colH) / 2, 0);
+  const cy2 = input.cy2 != null ? Math.max(input.cy2, 0) : cy1;
 
-  const dx = Math.min(cx1, ho);
-  const dy = Math.min(cy1, ho);
-  const um = 2 * (colB + dx) + 2 * (colH + dy);
-  const towerLx = colB + 2 * dx;
-  const towerLy = colH + 2 * dy;
+  // MongDon um1 / Act
+  const mcx1 = Math.min(cx1, ho);
+  const mcx2 = Math.min(cx2, ho);
+  const mcy1 = Math.min(cy1, ho);
+  const mcy2 = Math.min(cy2, ho);
+  const um = 2 * colB + 2 * colH + mcx1 + mcx2 + mcy1 + mcy2;
+  const towerLx = colB + mcx1 + mcx2;
+  const towerLy = colH + mcy1 + mcy2;
   const Act = Math.max(Af - towerLx * towerLy, 0);
 
   const Nct = Math.max(pMax, 0) * Act;
@@ -123,8 +140,8 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
     ho,
   };
 
-  const MxConsole = Math.max(pMax, 0) * (cx1 * cx1) / 2;
-  const MyConsole = Math.max(pMax, 0) * (cy1 * cy1) / 2;
+  const MxConsole = Math.max(pMax, 0) * (Math.max(cx1, cx2) * Math.max(cx1, cx2)) / 2;
+  const MyConsole = Math.max(pMax, 0) * (Math.max(cy1, cy2) * Math.max(cy1, cy2)) / 2;
 
   const zeta = 0.9;
   const AsXFromM = Rs > 0 && ho > 0 ? (MxConsole * 1e6) / (Rs * zeta * ho * 1000) : 0;
@@ -140,7 +157,7 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
 
   if (!px.ok) warnings.push('Chưa nhập thép phương X hợp lệ (vd d12a150).');
   if (!py.ok) warnings.push('Chưa nhập thép phương Y hợp lệ (vd d12a150).');
-  if (cx1 < 0.05) warnings.push('Console X rất nhỏ — kiểm tra kích thước móng/cột.');
+  if (Math.max(cx1, cx2) < 0.05) warnings.push('Console X rất nhỏ — kiểm tra kích thước móng/cột.');
   if (pMin < 0) warnings.push('p_min < 0: có nguy cơ nhổ góc móng — cần xem xét tổ hợp / tăng kích thước.');
 
   const flexureX = check(
