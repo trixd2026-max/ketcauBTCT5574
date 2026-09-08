@@ -1,5 +1,5 @@
 /**
- * Column (Cột) V1.1 — aligned with Column.xlsm (Column_Design, ThepDai, Data_Column).
+ * Column (Cột) V1.2 — aligned with Column.xlsm (Column_Design, ThepDai, Data_Column).
  * Units: mm, MPa, kN, kNm
  * N–M interaction is APPROXIMATE (Excel FS comes from VBA macro) — not TCVN-locked.
  */
@@ -62,6 +62,8 @@ export type ColumnResult = {
     detailing: Check;
   };
   pass: boolean;
+  /** true = N-M gan dung, khong phai VBA Column.xlsm */
+  interactionApprox: true;
   warnings: string[];
 };
 
@@ -90,14 +92,7 @@ export function parseColumnBars(spec: string): { As: number; n: number; dia: num
 }
 
 function uniaxialMu(
-  N: number,
-  b: number,
-  h: number,
-  As: number,
-  a: number,
-  Rb: number,
-  Rsc: number,
-  _Rs: number
+  N: number, b: number, h: number, As: number, a: number, Rb: number, Rsc: number, _Rs: number
 ): number {
   const Ab = b * h;
   const ho = h - a;
@@ -171,28 +166,25 @@ export function calcColumn(input: ColumnInput): ColumnResult {
     const qDemand = Math.abs(Q);
     const phiB1 = 0.3;
     const qbt = (phiB1 * c.Rb * width * ho) / 1000;
-
-    const Asw = legs * (Math.PI * input.stirrupDia ** 2) / 4;
-    const Rsw = input.stirrupDia >= 10 ? s.Rsw : st.Rsw;
-    const qsw = input.stirrupSpacing > 0 ? (Rsw * Asw) / input.stirrupSpacing : 0;
-
-    const phiB2 = 1.5;
-    const qBraw = (phiN * phiB2 * c.Rbt * width * ho) / 1000;
-    const qBmin = (0.5 * c.Rbt * width * ho) / 1000;
-    const qBmax = (2.5 * c.Rbt * width * ho) / 1000;
-    const qB = Math.min(Math.max(qBraw, qBmin), qBmax);
-
-    const phiSw = 0.75;
-    const qSw = (phiSw * qsw * ho) / 1000;
-    const qRes = qB + qSw;
-
+    const Asw = (legs * (Math.PI * input.stirrupDia * input.stirrupDia)) / 4;
+    const qsw =
+      input.stirrupSpacing > 0 ? (st.Rsw * Asw * ho) / (input.stirrupSpacing * 1000) : 0;
+    const qRes = phiN * (qbt + qsw);
     const passBt = qDemand <= qbt + 1e-6;
     const passRes = qDemand <= qRes + 1e-6;
-    const pass = passBt && passRes;
-    const msg = pass
-      ? `Q=${qDemand.toFixed(1)} ≤ Qbt=${qbt.toFixed(1)} & Qb+Qsw=${qRes.toFixed(1)} (φn=${phiN.toFixed(2)})`
-      : `Cắt KĐ: Q=${qDemand.toFixed(1)} > min(Qbt=${qbt.toFixed(1)}, Qb+Qsw=${qRes.toFixed(1)})`;
-    return { qDemand, qbt, qRes, phiN, check: check(pass, msg) };
+    const pass = passBt || passRes;
+    return {
+      qDemand,
+      qbt,
+      qRes,
+      phiN,
+      check: check(
+        pass,
+        pass
+          ? `Q=${qDemand.toFixed(1)} ≤ max(qbt=${qbt.toFixed(1)}, φn·(qbt+qsw)=${qRes.toFixed(1)})`
+          : `Q=${qDemand.toFixed(1)} > qbt=${qbt.toFixed(1)} và > qRes=${qRes.toFixed(1)}`
+      ),
+    };
   };
 
   const shearX = calcShear(input.Qx ?? 0, b, h, input.stirrupLegsX);
@@ -207,14 +199,14 @@ export function calcColumn(input: ColumnInput): ColumnResult {
   const muCheck = check(
     mu >= muMin && mu <= muMax && nBars >= 4,
     mu >= muMin && mu <= muMax && nBars >= 4
-      ? `μ=${mu.toFixed(2)}% ∈ [${muMin}, ${muMax}], n=${nBars}≥4`
+      ? `μ=${mu.toFixed(2)}% (min ${muMin}% · max ${muMax}%) · n=${nBars}`
       : `μ=${mu.toFixed(2)}% hoặc n=${nBars} không đạt (min ${muMin}%, ≥4 thanh)`
   );
   const interactionCheck = check(
     interaction <= 1.0 && N <= N0,
     interaction <= 1.0 && N <= N0
-      ? `Tương tác N–M ≈ ${interaction.toFixed(3)} ≤ 1 (α=${alpha}) — gần đúng`
-      : `Tương tác N–M ≈ ${interaction.toFixed(3)} > 1 hoặc N=${N.toFixed(0)} > N0=${N0.toFixed(0)}`
+      ? `Tương tác N–M ≈ ${interaction.toFixed(3)} ≤ 1 (α=${alpha}) — CÔNG THỨC GẦN ĐÚNG`
+      : `N–M ≈ ${interaction.toFixed(3)} > 1 hoặc N>${N0.toFixed(0)} — GẦN ĐÚNG, cần KS kiểm tra`
   );
   const compressionRatio = check(
     vd <= vdLimit,
@@ -236,7 +228,7 @@ export function calcColumn(input: ColumnInput): ColumnResult {
   if (!shearY.check.pass) warnings.push(`Qy: ${shearY.check.message}`);
   if (!detailing.pass) warnings.push(detailing.message);
   warnings.push(
-    'Cột V1.1: biểu đồ tương tác N–M là gần đúng (Excel FS từ macro VBA) — chưa khóa chuẩn TCVN 5574 / Column.xlsm'
+    '⚠ N–M GẦN ĐÚNG: tương tác ≈ (Mx/Mx0)^α+(My/My0)^α — KHÔNG thay macro VBA Column.xlsm / TCVN 5574 đầy đủ. Chỉ dùng định hướng; KS phải kiểm tra lại.'
   );
 
   const pass =
@@ -249,51 +241,21 @@ export function calcColumn(input: ColumnInput): ColumnResult {
     shearY.check.pass;
 
   return {
-    Ab,
-    As,
-    mu,
-    muMin,
-    muMax,
-    lambdaX: safe(lambdaX),
-    lambdaY: safe(lambdaY),
-    lambdaMax: safe(lambdaMax),
-    lambdaLimit,
-    N0: safe(N0),
-    Mx0: safe(Mx0),
-    My0: safe(My0),
-    interaction: safe(interaction),
-    alpha,
-    vd: safe(vd),
-    vdLimit,
-    fcd: safe(fcd),
-    shearX,
-    shearY,
+    Ab, As, mu, muMin, muMax,
+    lambdaX: safe(lambdaX), lambdaY: safe(lambdaY), lambdaMax: safe(lambdaMax), lambdaLimit,
+    N0: safe(N0), Mx0: safe(Mx0), My0: safe(My0),
+    interaction: safe(interaction), alpha, vd: safe(vd), vdLimit, fcd: safe(fcd),
+    shearX, shearY,
     checks: { slenderness, mu: muCheck, interaction: interactionCheck, compressionRatio, detailing },
     pass,
+    interactionApprox: true as const,
     warnings,
   };
 }
 
 export const createDefaultColumn = (id: string = crypto.randomUUID()): ColumnInput => ({
-  id,
-  name: 'Cột mới',
-  b: 300,
-  h: 600,
-  L0x: 3040,
-  L0y: 3040,
-  N: 1200,
-  Mx: 90,
-  My: 50,
-  Qx: 80,
-  Qy: 60,
-  concrete: 'B25',
-  steel: 'CB500-V',
-  stirrupSteel: 'CB240-T',
-  bars: '12d20',
-  cover: 30,
-  gammaB: 0.85,
-  stirrupDia: 10,
-  stirrupSpacing: 200,
-  stirrupLegsX: 2,
-  stirrupLegsY: 2,
+  id, name: 'Cột mới', b: 300, h: 600, L0x: 3040, L0y: 3040,
+  N: 1200, Mx: 90, My: 50, Qx: 80, Qy: 60,
+  concrete: 'B25', steel: 'CB500-V', stirrupSteel: 'CB240-T', bars: '12d20',
+  cover: 30, gammaB: 0.85, stirrupDia: 10, stirrupSpacing: 200, stirrupLegsX: 2, stirrupLegsY: 2,
 });
