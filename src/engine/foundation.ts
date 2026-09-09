@@ -25,10 +25,8 @@ export type FoundationInput = {
   N: number;
   Mx: number;
   My: number;
-  /** Lực ngang tại đỉnh cột/móng (kN) — quy đổi moment đáy */
   Fx?: number;
   Fy?: number;
-  /** Lệch tâm cột so với tâm móng (m) */
   ex?: number;
   ey?: number;
   Rtc: number;
@@ -156,28 +154,21 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
   const Fy = input.Fy ?? 0;
   const ex = input.ex ?? 0;
   const ey = input.ey ?? 0;
-
   const concrete = getConcrete(input.concrete);
   const steel = getSteel(input.steel);
   const Rbt = concrete.Rbt;
   const Rs = steel.Rs;
-
   const Af = Lx * Ly;
   const Wx = (Lx * Ly * Ly) / 6;
   const Wy = (Ly * Lx * Lx) / 6;
-
   const Fz = input.N;
   const sigmaN = Htn > 0 ? Fz + Htn * gammaPrime * Af : Fz;
-
-  // ΣMx = MX − FY·Hf − FZ·ey ; ΣMy = MY + FX·Hf + FZ·ex  (MongDon AM/AN)
   const sigmaMx = Math.abs(input.Mx - Fy * Hf - Fz * ey);
   const sigmaMy = Math.abs(input.My + Fx * Hf + Fz * ex);
-
   const selfW = gammaFill * Df + pg;
   const pAvg = sigmaN / Af + selfW;
   const pMax = sigmaN / Af + sigmaMx / Wx + sigmaMy / Wy + selfW;
   const pMin = sigmaN / Af - sigmaMx / Wx - sigmaMy / Wy + selfW;
-
   const rtcMode = input.rtcMode ?? 'manual';
   let bearing: BearingFactors | undefined;
   let rtcUsed = Math.max(input.Rtc, 1);
@@ -196,24 +187,14 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
     });
     rtcUsed = Math.max(bearing.rtcCalc, 1);
   }
-
-  const soilAvg = check(
-    pAvg <= rtcUsed + 1e-6,
-    `p_tb=${pAvg.toFixed(1)} ${pAvg <= rtcUsed ? '≤' : '>'} Rtc=${rtcUsed.toFixed(1)}`
-  );
-  const soilMax = check(
-    pMax <= 1.2 * rtcUsed + 1e-6,
-    `p_max=${pMax.toFixed(1)} ${pMax <= 1.2 * rtcUsed ? '≤' : '>'} 1.2Rtc=${(1.2 * rtcUsed).toFixed(1)}`
-  );
+  const soilAvg = check(pAvg <= rtcUsed + 1e-6, `p_tb=${pAvg.toFixed(1)} ${pAvg <= rtcUsed ? '≤' : '>'} Rtc=${rtcUsed.toFixed(1)}`);
+  const soilMax = check(pMax <= 1.2 * rtcUsed + 1e-6, `p_max=${pMax.toFixed(1)} ${pMax <= 1.2 * rtcUsed ? '≤' : '>'} 1.2Rtc=${(1.2 * rtcUsed).toFixed(1)}`);
   const soilMin = check(pMin >= -1e-6, `p_min=${pMin.toFixed(1)} ${pMin >= 0 ? '≥' : '<'} 0 (không nhổ)`);
-
   const ho = Math.max(Hf - a_mm / 1000, 0.05);
-
   const cx1 = input.cx1 != null ? Math.max(input.cx1, 0) : Math.max((Lx - colB) / 2, 0);
   const cx2 = input.cx2 != null ? Math.max(input.cx2, 0) : cx1;
   const cy1 = input.cy1 != null ? Math.max(input.cy1, 0) : Math.max((Ly - colH) / 2, 0);
   const cy2 = input.cy2 != null ? Math.max(input.cy2, 0) : cy1;
-
   const mcx1 = Math.min(cx1, ho);
   const mcx2 = Math.min(cx2, ho);
   const mcy1 = Math.min(cy1, ho);
@@ -222,7 +203,6 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
   const towerLx = colB + mcx1 + mcx2;
   const towerLy = colH + mcy1 + mcy2;
   const Act = Math.max(Af - towerLx * towerLy, 0);
-
   const Nct = Math.max(pMax, 0) * Act;
   const Nkt = 0.75 * Rbt * um * ho * 1000;
   const punchingPass = Nct <= Nkt + 1e-3;
@@ -230,7 +210,6 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
     ...check(punchingPass, `Nct=${Nct.toFixed(1)} ${punchingPass ? '≤' : '>'} Nkt=${Nkt.toFixed(1)} kN`),
     Nct, Nkt, um, Act, ho,
   };
-
   const MxConsole = (Math.max(pMax, 0) * Math.max(cx1, cx2) ** 2) / 2;
   const MyConsole = (Math.max(pMax, 0) * Math.max(cy1, cy2) ** 2) / 2;
   const zeta = 0.9;
@@ -239,40 +218,85 @@ export function calcFoundation(input: FoundationInput): FoundationResult {
   const AsMin = 0.001 * 1000 * (ho * 1000);
   const AsXReq = Math.max(AsXFromM, AsMin);
   const AsYReq = Math.max(AsYFromM, AsMin);
-
   const px = parseFoundationBars(input.barsX ?? '');
   const py = parseFoundationBars(input.barsY ?? '');
   const AsXProv = px.ok ? px.As : 0;
   const AsYProv = py.ok ? py.As : 0;
-
   if (!px.ok) warnings.push('Chưa nhập thép phương X hợp lệ (vd d12a150).');
   if (!py.ok) warnings.push('Chưa nhập thép phương Y hợp lệ (vd d12a150).');
   if (Math.max(cx1, cx2) < 0.05) warnings.push('Console X rất nhỏ — kiểm tra kích thước móng/cột.');
   if (pMin < 0) warnings.push('p_min < 0: có nguy cơ nhổ góc móng.');
   if (Htn > 0) warnings.push(`ΣN = FZ(${Fz.toFixed(1)}) + Htn·γ'·Af = ${sigmaN.toFixed(1)} kN`);
   if (Fx !== 0 || Fy !== 0 || ex !== 0 || ey !== 0) {
-    warnings.push(
-      `ΣM đáy: Mx=${sigmaMx.toFixed(2)} (MX−FY·Hf−FZ·ey), My=${sigmaMy.toFixed(2)} (MY+FX·Hf+FZ·ex)`
-    );
+    warnings.push(`ΣM đáy: Mx=${sigmaMx.toFixed(2)} (MX−FY·Hf−FZ·ey), My=${sigmaMy.toFixed(2)} (MY+FX·Hf+FZ·ex)`);
   }
-
-  const flexureX = check(
-    AsXProv + 1e-6 >= AsXReq,
-    `Asx bố trí ${AsXProv.toFixed(0)} ${AsXProv >= AsXReq ? '≥' : '<'} yc ${AsXReq.toFixed(0)} mm²/m`
-  );
-  const flexureY = check(
-    AsYProv + 1e-6 >= AsYReq,
-    `Asy bố trí ${AsYProv.toFixed(0)} ${AsYProv >= AsYReq ? '≥' : '<'} yc ${AsYReq.toFixed(0)} mm²/m`
-  );
-
-  const pass =
-    soilAvg.pass && soilMax.pass && soilMin.pass && punching.pass && flexureX.pass && flexureY.pass;
-
+  const flexureX = check(AsXProv + 1e-6 >= AsXReq, `Asx bố trí ${AsXProv.toFixed(0)} ${AsXProv >= AsXReq ? '≥' : '<'} yc ${AsXReq.toFixed(0)} mm²/m`);
+  const flexureY = check(AsYProv + 1e-6 >= AsYReq, `Asy bố trí ${AsYProv.toFixed(0)} ${AsYProv >= AsYReq ? '≥' : '<'} yc ${AsYReq.toFixed(0)} mm²/m`);
+  const pass = soilAvg.pass && soilMax.pass && soilMin.pass && punching.pass && flexureX.pass && flexureY.pass;
   return {
     Af, Wx, Wy, sigmaN, sigmaMx, sigmaMy, pAvg, pMax, pMin, rtcUsed, bearing,
     soilAvg, soilMax, soilMin, punching, flexureX, flexureY,
     AsXReq, AsXProv, AsYReq, AsYProv, AsXMin: AsMin, AsYMin: AsMin,
     pass, warnings,
+  };
+}
+
+/** Gợi ý kích thước móng đơn từ N, Rtc, moment (vuông hoặc gần vuông). */
+export type FoundationSizeSuggestion = {
+  Lx: number;
+  Ly: number;
+  Af: number;
+  pAvgEst: number;
+  eX: number;
+  eY: number;
+  note: string;
+};
+
+export function suggestFoundationSize(input: {
+  N: number;
+  Mx?: number;
+  My?: number;
+  Rtc: number;
+  gammaFill?: number;
+  Df?: number;
+  pg?: number;
+  aspect?: number;
+}): FoundationSizeSuggestion {
+  const N = Math.max(Math.abs(input.N), 1);
+  const Mx = Math.abs(input.Mx ?? 0);
+  const My = Math.abs(input.My ?? 0);
+  const Rtc = Math.max(input.Rtc, 50);
+  const gamma = input.gammaFill ?? 20;
+  const Df = input.Df ?? 1.5;
+  const pg = input.pg ?? 0;
+  const selfW = gamma * Df + pg;
+  const pAllow = Math.max(Rtc - selfW, 50);
+  let Af = (N * 1.15) / pAllow;
+  const eX0 = N > 0 ? My / N : 0;
+  const eY0 = N > 0 ? Mx / N : 0;
+  const aspect = Math.max(input.aspect ?? 1, 0.5);
+  let Lx = Math.sqrt(Af / aspect);
+  let Ly = Lx * aspect;
+  for (let i = 0; i < 6; i++) {
+    const needLx = Math.max(6 * eX0, Math.sqrt(Af / aspect));
+    const needLy = Math.max(6 * eY0, needLx * aspect);
+    Lx = Math.ceil(needLx * 20) / 20;
+    Ly = Math.ceil(needLy * 20) / 20;
+    Af = Lx * Ly;
+  }
+  const pAvgEst = N / Af + selfW;
+  const note =
+    eX0 > Lx / 6 || eY0 > Ly / 6
+      ? 'Cạnh đã tăng để e ≤ L/6 — nên kiểm tra lại pmax/pmin sau khi áp dụng'
+      : 'Gợi ý sơ bộ: p_avg ≈ N/Af + γ·Df; kiểm tra pmax ≤ Rtc sau khi áp dụng';
+  return {
+    Lx: Math.round(Lx * 100) / 100,
+    Ly: Math.round(Ly * 100) / 100,
+    Af: Math.round(Af * 100) / 100,
+    pAvgEst: Math.round(pAvgEst * 10) / 10,
+    eX: Math.round(eX0 * 1000) / 1000,
+    eY: Math.round(eY0 * 1000) / 1000,
+    note,
   };
 }
 
