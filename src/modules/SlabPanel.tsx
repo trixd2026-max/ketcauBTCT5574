@@ -38,8 +38,6 @@ export default function SlabPanel() {
   const results = useMemo(() => items.map((slab) => ({ slab, result: calcSlab(slab) })), [items]);
   const current = results.find((r) => r.slab.id === selected.id) ?? results[0];
   const result = current.result;
-  const top = parseSlabBars(selected.barsTop ?? '');
-  const bot = parseSlabBars(selected.barsBottom ?? '');
 
   const patch = (p: Partial<SlabInput>) =>
     setItems((list) => list.map((s) => (s.id === selected.id ? { ...s, ...p } : s)));
@@ -192,7 +190,13 @@ export default function SlabPanel() {
             <span className={`status ${result.pass ? 'pass' : 'fail'} large`}>{result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}</span>
           </div>
           <section className="result-section">
-            <div className="section-heading"><h3>Uốn 2 phương</h3></div>
+            <div className="section-heading">
+              <h3>Uốn {result.slabSystem === 'one-way' ? '1 phương' : '2 phương'}</h3>
+              <span className={`status ${result.slabSystem === 'one-way' ? 'info' : 'pass'}`}>
+                {result.slabSystem === 'one-way' ? `1P · chính ${result.mainDir}` : '2 phương'}
+              </span>
+            </div>
+            <div className="result"><span>Lx / Ly / tỷ số</span><strong>{fmt(selected.Lx, 2)} / {fmt(selected.Ly, 2)} m · {fmt(result.spanRatio, 2)}</strong></div>
             <div className="result"><span>a bảo vệ trên / dưới</span><strong>{fmt(result.aTop ?? selected.aTop, 0)} / {fmt(result.aBottom ?? selected.aBottom, 0)} mm</strong></div>
             <div className="result"><span>ho trên / dưới (h−a)</span><strong>{fmt(result.hoTop ?? selected.h - selected.aTop, 0)} / {fmt(result.hoBot ?? selected.h - selected.aBottom, 0)} mm</strong></div>
             <div className="result"><span>AsX trên yc / bố trí</span><strong>{fmt(result.AsTopXReq, 0)} / {fmt(result.AsTopXProv, 0)} mm²/m</strong></div>
@@ -209,6 +213,14 @@ export default function SlabPanel() {
             <div className="result"><span>Nct / Nkt</span><strong>{fmt(result.punching.Nct, 1)} / {fmt(result.punching.Nkt, 1)} kN</strong></div>
             <div className="result"><span>um / ho</span><strong>{fmt(result.punching.um, 0)} mm / {fmt(result.punching.ho, 0)} mm</strong></div>
             <div className={result.punching.pass ? 'text-pass' : 'text-fail'}>{result.punching.pass ? '✓' : '×'} {result.punching.message}</div>
+            {result.punching.needRebar && (
+              <div className="suggest-block">
+                <div className="suggest-title">Thép chống chọc thủng (gợi ý)</div>
+                <div className="result"><span>Asw yc</span><strong>{fmt(result.punching.AswReq, 0)} mm² trên chu vi</strong></div>
+                <div className="result"><span>Bố trí gợi ý</span><strong>{result.punching.rebarSuggest || '—'}</strong></div>
+                <small className="text-fail">Nct &gt; Nkt — cần thép đứng/đai quanh cột (ước lượng sơ bộ)</small>
+              </div>
+            )}
           </section>
           <section className="result-section">
             <div className="checks">
