@@ -205,6 +205,10 @@ export default function FoundationPanel() {
             <div className="result"><span>Rtc dùng</span><strong>{fmt(result.rtcUsed, 1)} kN/m²{result.bearing ? ` (A=${result.bearing.A}, B=${result.bearing.B}, D=${result.bearing.D})` : ''}</strong></div>
             <div className="result"><span>p_tb / max / min</span><strong>{fmt(result.pAvg, 1)} / {fmt(result.pMax, 1)} / {fmt(result.pMin, 1)}</strong></div>
             <div className="result"><span>Nct / Nkt</span><strong>{fmt(result.punching.Nct, 1)} / {fmt(result.punching.Nkt, 1)}</strong></div>
+            <PressureDiagram pMax={result.pMax} pMin={result.pMin} pAvg={result.pAvg} rtc={result.rtcUsed} />
+            {result.pMin < 0 && (
+              <div className="text-fail" style={{ marginTop: 8 }}>⚠ p_min < 0 — nguy cơ nhổ góc móng</div>
+            )}
             <div className="checks">
               <div className={result.soilAvg.pass ? 'text-pass' : 'text-fail'}>{result.soilAvg.pass ? '✓' : '×'} {result.soilAvg.message}</div>
               <div className={result.soilMax.pass ? 'text-pass' : 'text-fail'}>{result.soilMax.pass ? '✓' : '×'} {result.soilMax.message}</div>
@@ -244,5 +248,37 @@ export default function FoundationPanel() {
         </div>
       </section>
     </>
+  );
+}
+
+function PressureDiagram({ pMax, pMin, pAvg, rtc }: { pMax: number; pMin: number; pAvg: number; rtc: number }) {
+  const W = 280, H = 120, pad = 28;
+  const vals = [pMax, pMin, pAvg, rtc, 0].filter((v) => Number.isFinite(v));
+  const vmax = Math.max(...vals.map(Math.abs), 1);
+  const y0 = H - pad;
+  const scale = (H - 2 * pad) / (2 * vmax);
+  const yOf = (p: number) => y0 - p * scale;
+  const x1 = pad, x2 = W - pad;
+  const yMax = yOf(pMax), yMin = yOf(pMin), yRtc = yOf(rtc), yZero = yOf(0);
+  return (
+    <div className="diagram">
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Sơ đồ áp lực đáy móng">
+        <line x1={pad} y1={yZero} x2={W - pad} y2={yZero} stroke="#90a1aa" strokeWidth="1" />
+        <line x1={pad} y1={pad / 2} x2={pad} y2={H - pad / 2} stroke="#90a1aa" strokeWidth="1" />
+        <polygon
+          points={`${x1},${yZero} ${x1},${yMax} ${x2},${yMin} ${x2},${yZero}`}
+          fill={pMin < 0 ? 'rgba(192,60,60,0.25)' : 'rgba(22,111,85,0.2)'}
+          stroke="#166f55"
+          strokeWidth="1.5"
+        />
+        {rtc > 0 && (
+          <line x1={x1} y1={yRtc} x2={x2} y2={yRtc} stroke="#c45c12" strokeDasharray="4 3" strokeWidth="1.2" />
+        )}
+        <text x={x1 + 4} y={yMax - 4} fontSize="10" fill="#166f55">pmax {pMax.toFixed(1)}</text>
+        <text x={x2 - 70} y={yMin - 4} fontSize="10" fill={pMin < 0 ? '#c22d2d' : '#166f55'}>pmin {pMin.toFixed(1)}</text>
+        {rtc > 0 && <text x={x1 + 4} y={yRtc + 12} fontSize="10" fill="#c45c12">Rtc {rtc.toFixed(0)}</text>}
+      </svg>
+      <div className="diagram-caption">Áp lực đáy móng (kN/m²) · nét đứt = Rtc · tô đỏ nếu pmin < 0 (nhổ góc)</div>
+    </div>
   );
 }
