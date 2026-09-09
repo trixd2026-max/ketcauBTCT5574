@@ -68,13 +68,13 @@ export function Flexure({
           <div className="suggest-chips">
             {suggestions.map((s) => (
               <button
-                key={s.spec}
+                key={s.label}
                 type="button"
                 className="suggest-chip"
                 title={`As = ${fmt(s.As, 0)} mm² · n=${s.n} · Ø${s.dia}`}
-                onClick={() => onApplyBars?.(s.spec, s.As, s.n, s.dia)}
+                onClick={() => onApplyBars?.(s.label, s.As, s.n, s.dia)}
               >
-                {s.spec}
+                {s.label}
               </button>
             ))}
           </div>
