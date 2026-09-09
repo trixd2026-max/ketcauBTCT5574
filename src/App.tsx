@@ -321,7 +321,7 @@ export default function App() {
                 <select value={selected.humidity ?? 'mid'} onChange={(e) => update('humidity', e.target.value)}>
                   <option value="high">{'">75%'}</option>
                   <option value="mid">40–75%</option>
-                  <option value="low">{'<'}40%</option>
+                  <option value="low">{'<40%'}</option>
                 </select>
               </Field>
               <Field label="Gối tựa">
@@ -341,11 +341,7 @@ export default function App() {
             </div>
             <Flexure title="Uốn M−" r={result.negative} />
             <Flexure title="Uốn M+" r={result.positive} />
-            <Shear
-              r={result}
-              spacing={selected.stirrupSpacing}
-              onApplyS={(s) => update('stirrupSpacing', String(s))}
-            />
+            <Shear r={result} spacing={selected.stirrupSpacing} onApplyS={(s) => update('stirrupSpacing', String(s))} />
             <Detailing d={result.detailing} />
             <CrackPanel c={result.crack} />
             <DeflectionPanel d={result.deflection} hasL={(selected.L ?? 0) > 0} />
@@ -367,15 +363,8 @@ export default function App() {
             <table>
               <thead>
                 <tr>
-                  <th>Dầm</th>
-                  <th>b×h</th>
-                  <th>As− yc/bố trí</th>
-                  <th>As+ yc/bố trí</th>
-                  <th>Q / Qb+Qsw</th>
-                  <th>s / s gợi ý</th>
-                  <th>Uốn</th>
-                  <th>Cắt</th>
-                  <th>Tổng</th>
+                  <th>Dầm</th><th>b×h</th><th>As− yc/bố trí</th><th>As+ yc/bố trí</th>
+                  <th>Q / Qb+Qsw</th><th>s / s gợi ý</th><th>Uốn</th><th>Cắt</th><th>Tổng</th>
                 </tr>
               </thead>
               <tbody>
@@ -384,24 +373,14 @@ export default function App() {
                   const asPosOk = r.positive.AsProvided >= r.positive.AsRequired;
                   const qOk = r.shear.qDemand <= r.shear.qResistance;
                   return (
-                    <tr
-                      key={beam.id}
-                      className={beam.id === selected.id ? 'row-selected' : undefined}
-                      onClick={() => setSelectedId(beam.id)}
-                      style={{ cursor: 'pointer' }}
-                    >
+                    <tr key={beam.id} className={beam.id === selected.id ? 'row-selected' : undefined}
+                      onClick={() => setSelectedId(beam.id)} style={{ cursor: 'pointer' }}>
                       <td><b>{beam.name}</b></td>
                       <td>{beam.b}×{beam.h}</td>
-                      <td className={asNegOk ? 'text-pass' : 'text-fail'}>
-                        {fmt(r.negative.AsRequired, 0)} / {fmt(r.negative.AsProvided, 0)}
-                      </td>
-                      <td className={asPosOk ? 'text-pass' : 'text-fail'}>
-                        {fmt(r.positive.AsRequired, 0)} / {fmt(r.positive.AsProvided, 0)}
-                      </td>
-                      <td className={qOk ? 'text-pass' : 'text-fail'}>
-                        {fmt(r.shear.qDemand, 1)} / {fmt(r.shear.qResistance, 1)}
-                      </td>
-                      <td>{fmt(r.shear.stirrupSpacing, 0)} / {fmt(r.shear.sSuggested ?? r.shear.sRequired ?? 0, 0)}</td>
+                      <td className={asNegOk ? 'text-pass' : 'text-fail'}>{fmt(r.negative.AsRequired, 0)} / {fmt(r.negative.AsProvided, 0)}</td>
+                      <td className={asPosOk ? 'text-pass' : 'text-fail'}>{fmt(r.positive.AsRequired, 0)} / {fmt(r.positive.AsProvided, 0)}</td>
+                      <td className={qOk ? 'text-pass' : 'text-fail'}>{fmt(r.shear.qDemand, 1)} / {fmt(r.shear.qResistance, 1)}</td>
+                      <td>{fmt(selected.stirrupSpacing, 0)} / {fmt(r.shear.sSuggested ?? r.shear.sRequired ?? 0, 0)}</td>
                       <td><Status pass={r.negative.check.pass && r.positive.check.pass} /></td>
                       <td><Status pass={r.shear.check.pass} /></td>
                       <td><Status pass={r.pass} /></td>
@@ -420,24 +399,15 @@ export default function App() {
 }
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <fieldset>
-      <legend>{title}</legend>
-      <div className="form">{children}</div>
-    </fieldset>
-  );
+  return (<fieldset><legend>{title}</legend><div className="form">{children}</div></fieldset>);
 }
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label>{label}{children}</label>;
 }
 function DecimalField({ label, value, step, onChange }: { label: string; value: number; step: string; onChange: (v: string) => void }) {
-  return (
-    <Field label={label}>
-      <input type="number" step={step} value={value} onChange={(e) => onChange(e.target.value)} />
-    </Field>
-  );
+  return (<Field label={label}><input type="number" step={step} value={value} onChange={(e) => onChange(e.target.value)} /></Field>);
 }
-function Status({ pass, large }: { pass: boolean; large?: boolean }) {
+function Status({ pass, large = false }: { pass: boolean; large?: boolean }) {
   return <span className={`status ${pass ? 'pass' : 'fail'}${large ? ' large' : ''}`}>{pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}</span>;
 }
 function Flexure({ title, r }: { title: string; r: BeamResult['negative'] }) {
@@ -451,7 +421,7 @@ function Flexure({ title, r }: { title: string; r: BeamResult['negative'] }) {
     </section>
   );
 }
-function Shear({ r, spacing, onApplyS }: { r: BeamResult; spacing: number; onApplyS: (s: number) => void }) {
+function Shear({ r, spacing, onApplyS }: { r: BeamResult; spacing: number; onApplyS?: (s: number) => void }) {
   const s = r.shear;
   const suggested = s.sSuggested ?? s.sRequired;
   return (
@@ -465,15 +435,12 @@ function Shear({ r, spacing, onApplyS }: { r: BeamResult; spacing: number; onApp
       <div className="result"><span>Asw</span><strong>{fmt(s.stirrupArea, 1)} mm²</strong></div>
       <div className="result"><span>qsw</span><strong>{fmt(s.qsw, 2)} N/mm</strong></div>
       <div className="result"><span>s / s,max</span><strong>{fmt(spacing, 0)} / {fmt(s.sMax, 0)} mm</strong></div>
-      {suggested != null && Number.isFinite(suggested) && (
+      {suggested != null && Number.isFinite(suggested) && onApplyS && (
         <div className="result">
           <span>s gợi ý (từ Q−Qb)</span>
-          <strong>
-            {fmt(suggested, 0)} mm{' '}
+          <strong>{fmt(suggested, 0)} mm{' '}
             <button type="button" className="primary" style={{ marginLeft: 8, padding: '2px 8px', fontSize: 12 }}
-              onClick={() => onApplyS(Math.round(suggested))}>
-              Áp dụng s
-            </button>
+              onClick={() => onApplyS(Math.round(suggested))}>Áp dụng s</button>
           </strong>
         </div>
       )}
@@ -484,11 +451,12 @@ function Shear({ r, spacing, onApplyS }: { r: BeamResult; spacing: number; onApp
   );
 }
 function Detailing({ d }: { d: BeamResult['detailing'] }) {
+  const items = Object.values(d).filter((x): x is { pass: boolean; message: string } => !!x && typeof x === 'object' && 'pass' in x);
   return (
     <section className="result-section">
       <div className="section-heading"><h3>Cấu tạo</h3></div>
       <div className="checks">
-        {Object.values(d).map((c, i) => (
+        {items.map((c, i) => (
           <div key={i} className={c.pass ? 'text-pass' : 'text-fail'}>{c.pass ? '✓' : '×'} {c.message}</div>
         ))}
       </div>
@@ -501,17 +469,23 @@ function CrackPanel({ c }: { c: BeamResult['crack'] }) {
       <div className="section-heading"><h3>Nứt</h3><Status pass={c.pass} /></div>
       <div className="result"><span>Mcrc</span><strong>{fmt(c.Mcrc ?? 0, 1)} kNm</strong></div>
       <div className="result"><span>acrc ngắn / dài</span><strong>{fmt(c.acrcShort ?? 0, 2)} / {fmt(c.acrcLong ?? 0, 2)} mm</strong></div>
-      <div className={c.pass ? 'text-pass' : 'text-fail'}>{c.pass ? '✓' : '×'} {c.message}</div>
+      <div className={c.pass ? 'text-pass' : 'text-fail'}>{c.pass ? '✓' : '×'} {(c as { message?: string }).message ?? (c.pass ? 'Nứt đạt' : 'Nứt không đạt')}</div>
     </section>
   );
 }
 function DeflectionPanel({ d, hasL }: { d: BeamResult['deflection']; hasL: boolean }) {
   return (
     <section className="result-section">
-      <div className="section-heading"><h3>Võng</h3>{hasL ? <Status pass={d.pass} /> : <span className="status">—</span>}</div>
-      <div className="result"><span>δ ngắn / dài</span><strong>{fmt(d.deltaShort ?? 0, 2)} / {fmt(d.deltaLong ?? 0, 2)} mm</strong></div>
-      <div className="result"><span>Giới hạn</span><strong>{fmt(d.limit ?? 0, 1)} mm</strong></div>
-      <div className={d.pass ? 'text-pass' : 'text-fail'}>{hasL ? (d.pass ? '✓' : '×') : '·'} {d.message}</div>
+      <div className="section-heading"><h3>Võng (ước lượng)</h3>{hasL ? <Status pass={d.pass} /> : <span className="status">cần L</span>}</div>
+      {hasL ? (
+        <>
+          <div className="result"><span>δ ngắn / giới hạn</span><strong>{fmt(d.deltaShort ?? 0)} / {fmt(d.limit ?? 0)} mm</strong></div>
+          <div className="result"><span>δ dài / giới hạn</span><strong>{fmt(d.deltaLong ?? 0)} / {fmt(d.limit ?? 0)} mm</strong></div>
+          <div className={d.pass ? 'text-pass' : 'text-fail'}>{d.pass ? '✓' : '×'} {(d as { message?: string }).message ?? (d.pass ? 'Võng đạt' : 'Võng không đạt')}</div>
+        </>
+      ) : (
+        <small className="text-fail">Nhập nhịp L để kiểm võng</small>
+      )}
     </section>
   );
 }
