@@ -113,11 +113,38 @@ export default function ReportPanel() {
       if (res.columns.length) saveList(KEYS.columns, res.columns);
       if (res.slabs.length) saveList(KEYS.slabs, res.slabs);
       if (res.foundations.length) saveList(KEYS.foundations, res.foundations);
-      setImportMsg(res.messages.join(' · ') || `Import OK`);
+      const mapLines = (res.sheetMaps || []).map(
+        (m) => `${m.sheet} [${m.kind}] ${m.rowCount} hàng · headers: ${m.headers.slice(0, 5).join(', ')}`,
+      );
+      setImportMsg(
+        [
+          `Import: ${res.beams.length} dầm · ${res.columns.length} cột · ${res.slabs.length} sàn · ${res.foundations.length} móng`,
+          ...mapLines.slice(0, 6),
+          ...res.messages.slice(0, 8),
+        ].join('\n') || 'Import OK',
+      );
       setTick((t) => t + 1);
     } catch (e) {
       setImportMsg('Import lỗi: ' + (e instanceof Error ? e.message : String(e)));
     }
+  };
+
+  const exportProjectTemplate = () => {
+    const payload = {
+      version: 'project-template-v1',
+      exportedAt: new Date().toISOString(),
+      meta,
+      beams: data.beamResults.map((x) => x.beam),
+      columns: data.columnResults.map((x) => x.col),
+      slabs: data.slabResults.map((x) => x.slab),
+      foundations: data.foundationResults.map((x) => x.f),
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `BoMau-DuAn-${meta.project || 'BTCT'}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   };
 
   const exportProjectAllExcel = () => {
@@ -237,12 +264,13 @@ export default function ReportPanel() {
           <button type="button" className="primary" onClick={exportProjectAllExcel}>Excel hồ sơ</button>
           <button type="button" className="primary" onClick={exportProjectAllPdf}>PDF hồ sơ</button>
           <button type="button" className="primary" onClick={exportProjectAllWord}>Word hồ sơ</button>
+          <button type="button" onClick={exportProjectTemplate}>Bộ mẫu dự án (JSON)</button>
         </div>
       </header>
 
       <section className="notice">
-        Import Excel thật (TongHop/Design · Beam.xlsm / MongDon). Đồng bộ localStorage với các tab.
-        {importMsg ? <div style={{ marginTop: 8 }}>{importMsg}</div> : null}
+        Import Excel (TongHop/Design · Beam / MongDon) — preview map cột + báo ô trống. Đồng bộ localStorage.
+        {importMsg ? <div style={{ marginTop: 8, whiteSpace: 'pre-wrap', fontSize: 12 }}>{importMsg}</div> : null}
       </section>
 
       <section className="card" style={{ marginBottom: 16 }}>
