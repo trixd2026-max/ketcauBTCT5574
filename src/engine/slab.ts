@@ -1,5 +1,6 @@
 /**
  * Sàn BTCT — strip 1m + bố trí 2 phương + chọc thủng quanh cột (theo hướng Slab.xlsm).
+ * Uốn 1m dải; chọc thủng khi có N + colB×colH.
  */
 import { getConcrete, getSteel, type Humidity } from './materials';
 import { calcCrack } from './crack';
@@ -8,12 +9,15 @@ import { calcDeflection } from './deflection';
 export type SlabInput = {
   id: string;
   name: string;
+  /** Bề rộng dải tính (mm) — mặc định 1000 */
   b: number;
   h: number;
   Lx: number;
   Ly: number;
+  /** Moment dải chính (tương thích cũ) */
   Mtop: number;
   Mbot: number;
+  /** Moment 2 phương (kNm/m) — nếu bỏ trống dùng Mtop/Mbot */
   MxTop?: number;
   MxBot?: number;
   MyTop?: number;
@@ -25,6 +29,7 @@ export type SlabInput = {
   aBottom: number;
   barsTop?: string;
   barsBottom?: string;
+  /** Bố trí 2 phương */
   barsTopX?: string;
   barsTopY?: string;
   barsBotX?: string;
@@ -35,6 +40,7 @@ export type SlabInput = {
   humidity?: Humidity;
   support?: 'simple' | 'continuous' | 'cantilever';
   gammaBt?: number;
+  /** Chọc thủng — phản lực cột (kN) + tiết diện cột (mm) */
   N?: number;
   colB?: number;
   colH?: number;
@@ -43,6 +49,11 @@ export type SlabInput = {
 export type Check = { pass: boolean; message: string };
 
 export type SlabResult = {
+  /** Chiều cao làm việc trên/dưới: ho = h − a bảo vệ */
+  hoTop: number;
+  hoBot: number;
+  aTop: number;
+  aBottom: number;
   AsTopReq: number;
   AsBotReq: number;
   AsTopProv: number;
@@ -127,14 +138,18 @@ export function calcSlab(input: SlabInput): SlabResult {
   const MyTop = input.MyTop ?? input.Mtop;
   const MyBot = input.MyBot ?? input.Mbot;
 
-  const hoTop = Math.max(input.h - input.aTop, 1);
-  const hoBot = Math.max(input.h - input.aBottom, 1);
+  // a bảo vệ → chiều cao làm việc (TCVN 5574)
+  const aTop = Math.max(input.aTop || 0, 0);
+  const aBottom = Math.max(input.aBottom || 0, 0);
+  const hoTop = Math.max(input.h - aTop, 1);
+  const hoBot = Math.max(input.h - aBottom, 1);
 
   const topX = flexureAs(MxTop, b, hoTop, Rb, Rs, xiR);
   const botX = flexureAs(MxBot, b, hoBot, Rb, Rs, xiR);
   const topY = flexureAs(MyTop, b, hoTop, Rb, Rs, xiR);
   const botY = flexureAs(MyBot, b, hoBot, Rb, Rs, xiR);
 
+  // legacy single-direction max for report compatibility
   const AsTopReq = Math.max(topX.As, topY.As);
   const AsBotReq = Math.max(botX.As, botY.As);
 
@@ -149,6 +164,9 @@ export function calcSlab(input: SlabInput): SlabResult {
   const AsBotXProv = parse(input.barsBotX, parse(input.barsBottom, input.AsBottom));
   const AsBotYProv = parse(input.barsBotY, parse(input.barsBottom, input.AsBottom));
 
+  const AsTopProv = Math.min(AsTopXProv || AsTopReq, AsTopYProv || AsTopReq) || Math.max(AsTopXProv, AsTopYProv);
+  const AsBotProv = Math.min(AsBotXProv || AsBotReq, AsBotYProv || AsBotReq) || Math.max(AsBotXProv, AsBotYProv);
+  // Prefer max provided for safety check display
   const AsTopProvMax = Math.max(AsTopXProv, AsTopYProv, parse(input.barsTop, input.AsTop));
   const AsBotProvMax = Math.max(AsBotXProv, AsBotYProv, parse(input.barsBottom, input.AsBottom));
 
@@ -178,9 +196,10 @@ export function calcSlab(input: SlabInput): SlabResult {
   );
 
   const Q = Math.abs(input.Q);
-  const qbt = (Rbt * b * Math.min(hoTop, hoBot)) / 1000;
+  const qbt = (Rbt * b * Math.min(hoTop, hoBot)) / 1000; // kN
   const shear = check(Q <= qbt + 1e-6, `Cắt dải: Q=${Q.toFixed(1)} ${Q <= qbt ? '≤' : '>'} Qbt=${qbt.toFixed(1)} kN/m`);
 
+  // Punching around column
   const N = Math.abs(input.N ?? 0);
   const colB = input.colB ?? 0;
   const colH = input.colH ?? 0;
@@ -211,8 +230,9 @@ export function calcSlab(input: SlabInput): SlabResult {
   const Mser = Math.abs(useTop ? MxTop : MxBot) / 1.4;
   const AsCr = useTop ? AsTopProvMax : AsBotProvMax;
   const AsCrP = useTop ? AsBotProvMax : AsTopProvMax;
-  const a = useTop ? input.aTop : input.aBottom;
-  const aP = useTop ? input.aBottom : input.aTop;
+  const a = useTop ? aTop : aBottom;
+  const aP = useTop ? aBottom : aTop;
+  const ds = 12;
   const crackR = calcCrack({
     b,
     h: input.h,
@@ -220,7 +240,7 @@ export function calcSlab(input: SlabInput): SlabResult {
     aPrime: aP,
     As: AsCr,
     AsPrime: AsCrP,
-    ds: 12,
+    ds,
     concrete: input.concrete,
     steel: input.steel,
     Mshort: Mser,
@@ -235,7 +255,7 @@ export function calcSlab(input: SlabInput): SlabResult {
     aPrime: aP,
     As: AsCr,
     AsPrime: AsCrP,
-    ds: 12,
+    ds,
     concrete: input.concrete,
     steel: input.steel,
     Mshort: Mser,
@@ -246,8 +266,13 @@ export function calcSlab(input: SlabInput): SlabResult {
     humidity: input.humidity ?? 'mid',
   });
 
-  const warnings = [...crackR.warnings.slice(0, 2), ...defR.warnings.slice(0, 2)];
-  if (!input.barsTopX && !input.barsTopY) {
+  const warnings = [
+    ...crackR.warnings.slice(0, 2),
+    ...defR.warnings.slice(0, 2),
+  ];
+  if ((input.barsTopX || input.barsTopY) && flexureX.pass && flexureY.pass) {
+    /* ok */
+  } else if (!input.barsTopX && !input.barsTopY) {
     warnings.push('Sàn: dùng 1 lớp thép chung 2 phương — nên nhập barsTopX/Y, barsBotX/Y');
   }
 
@@ -273,17 +298,21 @@ export function calcSlab(input: SlabInput): SlabResult {
     EIlong: defR.EIlong,
   };
 
+  const twoWayOk = flexureX.pass && flexureY.pass;
   const pass =
     flexureTop.pass &&
     flexureBot.pass &&
-    flexureX.pass &&
-    flexureY.pass &&
+    twoWayOk &&
     shear.pass &&
     punching.pass &&
     crackCheck.pass &&
     defCheck.pass;
 
   return {
+    hoTop: safe(hoTop),
+    hoBot: safe(hoBot),
+    aTop: safe(aTop),
+    aBottom: safe(aBottom),
     AsTopReq: safe(AsTopReq),
     AsBotReq: safe(AsBotReq),
     AsTopProv: safe(AsTopProvMax),
