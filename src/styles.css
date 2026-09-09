@@ -16,7 +16,6 @@ fieldset { border: 1px solid #e2e8eb; border-radius: 9px; padding: 12px; margin:
 @media (max-width: 800px) { .app { display: block; } aside { width: 100%; min-height: auto; padding: 16px; }.nav { display: none; }.sidefoot { display: none; } main { padding: 18px; } header { display: block; }.actions { justify-content: flex-start; margin-top: 14px; }.workspace { display: block; }.card { margin-bottom: 14px; }.result-panel { display: block; }.result-section { border-top: 1px solid #e7edef; padding-top: 16px; margin-top: 16px; }.form { grid-template-columns: 1fr; } }
 @media print { aside, .actions, .notice, .beam-list, .input .card-title button { display: none !important; } body { background: #fff; } main { padding: 0; max-width: none; }.workspace { display: block; }.input, .result-panel, .summary { box-shadow: none; break-inside: avoid; margin-bottom: 14px; }.input { display: none; }.card { border-color: #d4dadd; }.result-panel { display: block; }.result-section { border-top: 1px solid #ddd; }.summary { margin-top: 0; } }
 
-/* —— Dark mode —— */
 html.dark body { background: #0f171c; color: #e6eef2; }
 html.dark aside { background: #0b1217; }
 html.dark .nav { color: #c5d4db; }
@@ -48,17 +47,33 @@ html.dark .text-fail { color: #f07178; }
 html.dark tr.row-selected td { background: #1a332c; }
 .theme-toggle { width: 100%; margin-top: 4px; font-size: 12px; padding: 8px; background: #1e333f !important; border-color: #2b424d !important; color: #d5e0e4 !important; }
 html.dark .theme-toggle { background: #243640 !important; }
-
-/* Diagram helpers */
 .diagram { margin-top: 12px; background: #f7f9fa; border: 1px solid #e2e8eb; border-radius: 8px; padding: 10px; }
 html.dark .diagram { background: #0f171c; border-color: #24343e; }
 .diagram svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
 .diagram-caption { font-size: 11px; color: #687881; text-align: center; margin-top: 6px; }
 html.dark .diagram-caption { color: #8aa0ab; }
-
-/* Print tighter */
 @media print {
   html.dark body, html.dark .card { background: #fff !important; color: #000 !important; }
   .theme-toggle, aside, .actions, .notice { display: none !important; }
   .diagram { break-inside: avoid; border-color: #ccc; }
 }
+
+/* Suggestion chips & badges */
+.suggest-block { margin-top: 10px; padding: 10px; background: #f3faf7; border: 1px solid #c5e6d8; border-radius: 8px; }
+html.dark .suggest-block { background: #143028; border-color: #2d5a48; }
+.suggest-title { font-size: 11px; font-weight: 750; color: #166f55; margin-bottom: 6px; }
+html.dark .suggest-title { color: #3dd68c; }
+.suggest-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.suggest-chip {
+  display: inline-flex; flex-direction: column; align-items: center;
+  padding: 6px 10px; border-radius: 8px; border: 1px solid #a5d5c3;
+  background: #fff; cursor: pointer; font-weight: 700; font-size: 12px; line-height: 1.2;
+}
+.suggest-chip small { font-weight: 500; color: #687881; font-size: 10px; margin-top: 2px; }
+.suggest-chip:hover { background: #e8f4ef; border-color: #166f55; }
+.suggest-chip.warn { border-color: #e8c070; background: #fff8e8; }
+html.dark .suggest-chip { background: #0f171c; border-color: #2d5a48; color: #e6eef2; }
+html.dark .suggest-chip:hover { background: #1a332c; }
+html.dark .suggest-chip small { color: #8aa0ab; }
+.status.info { color: #1a5f9e; background: #e5f1fb; }
+html.dark .status.info { color: #6cb6ff; background: #152a3d; }
