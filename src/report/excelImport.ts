@@ -7,12 +7,21 @@ import { createDefaultColumn, type ColumnInput } from '../engine/column';
 import { createDefaultSlab, type SlabInput } from '../engine/slab';
 import { createDefaultFoundation, type FoundationInput } from '../engine/foundation';
 
+export type SheetMapPreview = {
+  sheet: string;
+  kind: string;
+  headers: string[];
+  rowCount: number;
+  emptyCells: string[];
+};
+
 export type ImportResult = {
   beams: BeamInput[];
   columns: ColumnInput[];
   slabs: SlabInput[];
   foundations: FoundationInput[];
   messages: string[];
+  sheetMaps?: SheetMapPreview[];
 };
 
 const num = (v: unknown, fallback = 0): number => {
@@ -310,6 +319,7 @@ export async function importWorkbookFile(file: File): Promise<ImportResult> {
   let columns: ColumnInput[] = [];
   let slabs: SlabInput[] = [];
   let foundations: FoundationInput[] = [];
+  const sheetMaps: SheetMapPreview[] = [];
   const ordered = [...wb.SheetNames].sort((a, b) => {
     const score = (n: string) => {
       const l = n.toLowerCase();
@@ -324,9 +334,33 @@ export async function importWorkbookFile(file: File): Promise<ImportResult> {
     const ws = wb.Sheets[sheetName];
     if (!ws) continue;
     const rows = sheetToRowsFlexible(ws);
-    if (!rows.length) continue;
-    const headers = Object.keys(rows[0] || {}).join('|');
+    const headerList = rows.length ? Object.keys(rows[0] || {}) : [];
+    const headers = headerList.join('|');
     const kind = classifySheet(sheetName, headers);
+    if (!rows.length) {
+      messages.push(`Sheet «${sheetName}»: trống — bỏ qua`);
+      sheetMaps.push({ sheet: sheetName, kind, headers: headerList, rowCount: 0, emptyCells: [] });
+      continue;
+    }
+    const emptyCells: string[] = [];
+    for (let ri = 0; ri < Math.min(rows.length, 30); ri++) {
+      const row = rows[ri];
+      for (const h of headerList.slice(0, 12)) {
+        const v = row[h];
+        if (v === '' || v == null) emptyCells.push(`Hàng ${ri + 2} · cột «${h}» trống`);
+      }
+    }
+    const emptyPreview = emptyCells.slice(0, 8);
+    sheetMaps.push({
+      sheet: sheetName,
+      kind,
+      headers: headerList.slice(0, 12),
+      rowCount: rows.length,
+      emptyCells: emptyPreview,
+    });
+    if (emptyPreview.length) {
+      messages.push(`«${sheetName}»: ${emptyPreview.length} ô trống (mẫu) — ${emptyPreview.slice(0, 3).join('; ')}`);
+    }
     if (kind === 'tonghop') {
       const mixed = importTongHopMixed(rows);
       beams = beams.concat(mixed.beams);
@@ -375,8 +409,12 @@ export async function importWorkbookFile(file: File): Promise<ImportResult> {
       slabs = slabs.concat(mixed.slabs);
       foundations = foundations.concat(mixed.foundations);
       messages.push(...mixed.messages.map((m) => `«${sheetName}» ${m}`));
+    } else {
+      messages.push(`Sheet «${sheetName}»: không map được (kind=${kind}) — headers: ${headerList.slice(0, 8).join(', ')}`);
     }
   }
-  if (!messages.length) messages.push('Không nhận diện được hàng dữ liệu — kiểm tra sheet TongHop/Design có header Tên, b, h, M+/M− hoặc FZ, Lx, Ly.');
-  return { beams, columns, slabs, foundations, messages };
+  if (!beams.length && !columns.length && !slabs.length && !foundations.length) {
+    messages.push('Không nhận diện được hàng dữ liệu — kiểm tra sheet TongHop/Design có header Tên, b, h, M+/M− hoặc FZ, Lx, Ly.');
+  }
+  return { beams, columns, slabs, foundations, messages, sheetMaps };
 }
