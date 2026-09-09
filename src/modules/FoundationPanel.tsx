@@ -3,6 +3,7 @@ import {
   calcFoundation,
   createDefaultFoundation,
   parseFoundationBars,
+  suggestFoundationSize,
   type FoundationInput,
 } from '../engine/foundation';
 import { concretes, steels } from '../engine/materials';
@@ -42,6 +43,19 @@ export default function FoundationPanel() {
   const results = useMemo(() => items.map((f) => ({ f, result: calcFoundation(f) })), [items]);
   const current = results.find((r) => r.f.id === selected.id) ?? results[0];
   const result = current.result;
+  const sizeSuggest = useMemo(
+    () =>
+      suggestFoundationSize({
+        N: selected.N,
+        Mx: selected.Mx,
+        My: selected.My,
+        Rtc: selected.Rtc,
+        gammaFill: selected.gammaFill,
+        Df: selected.Df,
+        pg: selected.pg,
+      }),
+    [selected.N, selected.Mx, selected.My, selected.Rtc, selected.gammaFill, selected.Df, selected.pg]
+  );
   const asX = parseFoundationBars(selected.barsX ?? '');
   const asY = parseFoundationBars(selected.barsY ?? '');
 
@@ -199,6 +213,21 @@ export default function FoundationPanel() {
             <h2>Kết quả</h2>
             <span className={`status ${result.pass ? 'pass' : 'fail'} large`}>{result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}</span>
           </div>
+          <section className="result-section">
+            <div className="section-heading"><h3>Gợi ý kích thước</h3></div>
+            <div className="result"><span>Lx × Ly gợi ý</span><strong>{fmt(sizeSuggest.Lx, 2)} × {fmt(sizeSuggest.Ly, 2)} m</strong></div>
+            <div className="result"><span>Af / p_avg ước</span><strong>{fmt(sizeSuggest.Af, 2)} m² · {fmt(sizeSuggest.pAvgEst, 1)} kN/m²</strong></div>
+            <div className="result"><span>eX / eY</span><strong>{fmt(sizeSuggest.eX, 3)} / {fmt(sizeSuggest.eY, 3)} m</strong></div>
+            <button
+              type="button"
+              className="primary"
+              style={{ marginTop: 4, fontSize: 12, padding: '4px 10px' }}
+              onClick={() => patch({ Lx: sizeSuggest.Lx, Ly: sizeSuggest.Ly })}
+            >
+              Áp dụng Lx×Ly
+            </button>
+            <small style={{ display: 'block', marginTop: 6, color: '#687881' }}>{sizeSuggest.note}</small>
+          </section>
           <section className="result-section">
             <div className="result"><span>ΣN (dùng tính p)</span><strong>{fmt(result.sigmaN, 1)} kN</strong></div>
             <div className="result"><span>ΣMx / ΣMy đáy</span><strong>{fmt(result.sigmaMx, 2)} / {fmt(result.sigmaMy, 2)} kNm</strong></div>
