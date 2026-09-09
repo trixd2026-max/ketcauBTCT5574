@@ -100,7 +100,10 @@ export function slabThuyetMinhDoc(
           heading: `${i + 2}. ${slab.name}`,
           rows: [
             { label: 'h / Lx×Ly', value: `${slab.h} mm · ${slab.Lx}×${slab.Ly} m` },
-            { label: 'Thép trên / dưới', value: `${slab.barsTop || '—'} / ${slab.barsBottom || '—'}` },
+            { label: 'Hệ sàn', value: `${r.slabSystem === 'one-way' ? '1 phương' : '2 phương'} (tỷ số ${Number(r.spanRatio).toFixed(2)}${r.mainDir ? ` · chính ${r.mainDir}` : ''})` },
+            { label: 'a / ho trên-dưới', value: `${r.aTop}/${r.aBottom} · ${Math.round(r.hoTop)}/${Math.round(r.hoBot)} mm` },
+            { label: 'Thép trên / dưới', value: `${slab.barsTopX || slab.barsTop || '—'} / ${slab.barsBotX || slab.barsBottom || '—'}` },
+            { label: 'Chọc thủng', value: `Nct ${Number(r.punching.Nct).toFixed(1)} / Nkt ${Number(r.punching.Nkt).toFixed(1)}${r.punching.needRebar ? ` · Asw≈${Math.round(r.punching.AswReq)} · ${r.punching.rebarSuggest}` : ''}` },
             { label: 'Kết luận', value: r.pass ? 'ĐẠT' : 'KHÔNG ĐẠT' },
           ],
           checks: [r.flexureTop, r.flexureBot, r.shear, r.crack, r.deflection],
