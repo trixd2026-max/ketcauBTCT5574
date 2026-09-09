@@ -127,7 +127,7 @@ export default function SlabPanel() {
       </header>
 
       <section className="notice">
-        <b>Sàn:</b> Dải 1 m. Excel / PDF báo cáo.
+        <b>Sàn:</b> Dải 1 m · <b>a bảo vệ</b> → ho = h − a (uốn / cắt / chọc thủng). Thép 2 phương X/Y · Excel / PDF.
       </section>
 
       <div className="workspace">
@@ -193,11 +193,12 @@ export default function SlabPanel() {
           </div>
           <section className="result-section">
             <div className="section-heading"><h3>Uốn 2 phương</h3></div>
-            <div className="result"><span>ho (từ a bảo vệ)</span><strong>{result.punching.ho || selected.h - Math.max(selected.aTop, selected.aBottom)} mm</strong></div>
-            <div className="result"><span>AsX trên yc / bố trí</span><strong>{fmt(result.AsTopXReq, 0)} / {fmt(result.AsTopXProv, 0)} mm²</strong></div>
-            <div className="result"><span>AsY trên yc / bố trí</span><strong>{fmt(result.AsTopYReq, 0)} / {fmt(result.AsTopYProv, 0)} mm²</strong></div>
-            <div className="result"><span>AsX dưới yc / bố trí</span><strong>{fmt(result.AsBotXReq, 0)} / {fmt(result.AsBotXProv, 0)} mm²</strong></div>
-            <div className="result"><span>AsY dưới yc / bố trí</span><strong>{fmt(result.AsBotYReq, 0)} / {fmt(result.AsBotYProv, 0)} mm²</strong></div>
+            <div className="result"><span>a bảo vệ trên / dưới</span><strong>{fmt(result.aTop ?? selected.aTop, 0)} / {fmt(result.aBottom ?? selected.aBottom, 0)} mm</strong></div>
+            <div className="result"><span>ho trên / dưới (h−a)</span><strong>{fmt(result.hoTop ?? selected.h - selected.aTop, 0)} / {fmt(result.hoBot ?? selected.h - selected.aBottom, 0)} mm</strong></div>
+            <div className="result"><span>AsX trên yc / bố trí</span><strong>{fmt(result.AsTopXReq, 0)} / {fmt(result.AsTopXProv, 0)} mm²/m</strong></div>
+            <div className="result"><span>AsY trên yc / bố trí</span><strong>{fmt(result.AsTopYReq, 0)} / {fmt(result.AsTopYProv, 0)} mm²/m</strong></div>
+            <div className="result"><span>AsX dưới yc / bố trí</span><strong>{fmt(result.AsBotXReq, 0)} / {fmt(result.AsBotXProv, 0)} mm²/m</strong></div>
+            <div className="result"><span>AsY dưới yc / bố trí</span><strong>{fmt(result.AsBotYReq, 0)} / {fmt(result.AsBotYProv, 0)} mm²/m</strong></div>
             <div className={result.flexureX.pass ? 'text-pass' : 'text-fail'}>{result.flexureX.pass ? '✓' : '×'} {result.flexureX.message}</div>
             <div className={result.flexureY.pass ? 'text-pass' : 'text-fail'}>{result.flexureY.pass ? '✓' : '×'} {result.flexureY.message}</div>
           </section>
