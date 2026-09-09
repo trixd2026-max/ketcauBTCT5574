@@ -217,7 +217,8 @@ export default function ColumnPanel() {
           </div>
           <section className="result-section">
             <div className="result"><span>μ / λmax / vd</span><strong>{fmt(result.mu, 3)}% / {fmt(result.lambdaMax, 1)} / {fmt(result.vd, 3)}</strong></div>
-            <div className="result"><span>N–M</span><strong>{fmt(result.interaction, 3)}</strong></div>
+            <div className="result"><span>N–M (gần đúng)</span><strong>{fmt(result.interaction, 3)}</strong></div>
+            <NMDiagram N={selected.N} Mx={selected.Mx} My={selected.My} N0={result.N0} Mx0={result.Mx0} My0={result.My0} interaction={result.interaction} />
             <div className="checks">
               {Object.values(result.checks).map((c, i) => (
                 <div key={i} className={c.pass ? 'text-pass' : 'text-fail'}>{c.pass ? '✓' : '×'} {c.message}</div>
@@ -251,5 +252,45 @@ export default function ColumnPanel() {
         </div>
       </section>
     </>
+  );
+}
+
+/** Sơ đồ N–M gần đúng: đường bao elip N/N0 + M/M0 = 1, điểm thiết kế */
+function NMDiagram({
+  N, Mx, My, N0, Mx0, My0, interaction,
+}: {
+  N: number; Mx: number; My: number; N0: number; Mx0: number; My0: number; interaction: number;
+}) {
+  const W = 280, H = 180, pad = 32;
+  const nMax = Math.max(Math.abs(N0), Math.abs(N), 1);
+  const mMax = Math.max(Math.abs(Mx0), Math.abs(My0), Math.abs(Mx), Math.abs(My), 1);
+  const cx = pad + 10, cy = H - pad;
+  const sx = (W - 2 * pad - 20) / nMax;
+  const sy = (H - 2 * pad) / mMax;
+  const pts: string[] = [];
+  for (let i = 0; i <= 40; i++) {
+    const t = (i / 40) * (Math.PI / 2);
+    const n = N0 * Math.cos(t);
+    const m = Mx0 * Math.sin(t);
+    pts.push(`${cx + Math.abs(n) * sx},${cy - Math.abs(m) * sy}`);
+  }
+  const px = cx + Math.abs(N) * sx;
+  const py = cy - Math.hypot(Mx, My) * sy;
+  const ok = interaction <= 1;
+  return (
+    <div className="diagram">
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Sơ đồ tương tác N-M gần đúng">
+        <line x1={cx} y1={pad / 2} x2={cx} y2={cy} stroke="#90a1aa" strokeWidth="1" />
+        <line x1={cx} y1={cy} x2={W - pad / 2} y2={cy} stroke="#90a1aa" strokeWidth="1" />
+        <polyline points={pts.join(' ')} fill="none" stroke="#166f55" strokeWidth="1.8" />
+        <circle cx={px} cy={Math.max(pad, Math.min(cy, py))} r="5" fill={ok ? '#166f55' : '#c22d2d'} />
+        <text x={cx + 6} y={pad + 8} fontSize="10" fill="#677680">M</text>
+        <text x={W - pad} y={cy - 6} fontSize="10" fill="#677680">N</text>
+        <text x={px + 8} y={Math.max(pad, Math.min(cy, py)) + 4} fontSize="10" fill={ok ? '#166f55' : '#c22d2d'}>
+          {interaction.toFixed(2)}
+        </text>
+      </svg>
+      <div className="diagram-caption">Đường bao gần đúng N/N₀–M/M₀ · điểm = tổ hợp thiết kế (không thay VBA)</div>
+    </div>
   );
 }
