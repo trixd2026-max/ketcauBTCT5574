@@ -155,22 +155,33 @@ export default function SlabPanel() {
             <div className="form">
               <label>Tên<input value={selected.name} onChange={(e) => setStr('name', e.target.value)} /></label>
               <label>h (mm)<input type="number" step="1" value={selected.h} onChange={(e) => setNum('h', e.target.value)} /></label>
+              <label>a bảo vệ trên (mm)<input type="number" step="1" value={selected.aTop} onChange={(e) => setNum('aTop', e.target.value)} /></label>
+              <label>a bảo vệ dưới (mm)<input type="number" step="1" value={selected.aBottom} onChange={(e) => setNum('aBottom', e.target.value)} /></label>
               <label>Lx (m)<input type="number" step="0.01" value={selected.Lx} onChange={(e) => setNum('Lx', e.target.value)} /></label>
               <label>Ly (m)<input type="number" step="0.01" value={selected.Ly} onChange={(e) => setNum('Ly', e.target.value)} /></label>
-              <label>M trên<input type="number" step="0.1" value={selected.Mtop} onChange={(e) => setNum('Mtop', e.target.value)} /></label>
-              <label>M dưới<input type="number" step="0.1" value={selected.Mbot} onChange={(e) => setNum('Mbot', e.target.value)} /></label>
+              <label>Mx trên<input type="number" step="0.1" value={selected.MxTop ?? selected.Mtop} onChange={(e) => setNum('MxTop', e.target.value)} /></label>
+              <label>Mx dưới<input type="number" step="0.1" value={selected.MxBot ?? selected.Mbot} onChange={(e) => setNum('MxBot', e.target.value)} /></label>
+              <label>My trên<input type="number" step="0.1" value={selected.MyTop ?? 0} onChange={(e) => setNum('MyTop', e.target.value)} /></label>
+              <label>My dưới<input type="number" step="0.1" value={selected.MyBot ?? 0} onChange={(e) => setNum('MyBot', e.target.value)} /></label>
               <label>Q (kN/m)<input type="number" step="0.1" value={selected.Q} onChange={(e) => setNum('Q', e.target.value)} /></label>
             </div>
           </fieldset>
           <fieldset>
-            <legend>Vật liệu & thép</legend>
+            <legend>Thép 2 phương + chọc thủng</legend>
             <div className="form">
               <label>Bê tông<select value={selected.concrete} onChange={(e) => setStr('concrete', e.target.value)}>{concretes.map((x) => <option key={x.name}>{x.name}</option>)}</select></label>
               <label>Thép<select value={selected.steel} onChange={(e) => setStr('steel', e.target.value)}>{steels.map((x) => <option key={x.name}>{x.name}</option>)}</select></label>
-              <label>Thép trên<input value={selected.barsTop ?? ''} placeholder="d10a200" onChange={(e) => setStr('barsTop', e.target.value)} /></label>
-              <label>As trên<input type="number" readOnly value={top.ok ? top.As : 0} style={{ background: '#f3f4f6' }} /></label>
-              <label>Thép dưới<input value={selected.barsBottom ?? ''} placeholder="d12a150" onChange={(e) => setStr('barsBottom', e.target.value)} /></label>
-              <label>As dưới<input type="number" readOnly value={bot.ok ? bot.As : 0} style={{ background: '#f3f4f6' }} /></label>
+              <label>Thép trên X<input value={selected.barsTopX ?? selected.barsTop ?? ''} placeholder="d10a200" onChange={(e) => setStr('barsTopX', e.target.value)} /></label>
+              <label>Thép trên Y<input value={selected.barsTopY ?? ''} placeholder="d10a200" onChange={(e) => setStr('barsTopY', e.target.value)} /></label>
+              <label>Thép dưới X<input value={selected.barsBotX ?? selected.barsBottom ?? ''} placeholder="d12a150" onChange={(e) => setStr('barsBotX', e.target.value)} /></label>
+              <label>Thép dưới Y<input value={selected.barsBotY ?? ''} placeholder="d12a150" onChange={(e) => setStr('barsBotY', e.target.value)} /></label>
+              <label>N cột (kN)<input type="number" step="0.1" value={selected.N ?? 0} onChange={(e) => setNum('N', e.target.value)} /></label>
+              <label>Cột b×h (mm)
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input type="number" step="1" value={selected.colB ?? 0} onChange={(e) => setNum('colB', e.target.value)} placeholder="b" />
+                  <input type="number" step="1" value={selected.colH ?? 0} onChange={(e) => setNum('colH', e.target.value)} placeholder="h" />
+                </div>
+              </label>
             </div>
           </fieldset>
         </section>
@@ -181,9 +192,25 @@ export default function SlabPanel() {
             <span className={`status ${result.pass ? 'pass' : 'fail'} large`}>{result.pass ? 'ĐẠT' : 'KHÔNG ĐẠT'}</span>
           </div>
           <section className="result-section">
+            <div className="section-heading"><h3>Uốn 2 phương</h3></div>
+            <div className="result"><span>ho (từ a bảo vệ)</span><strong>{result.punching.ho || selected.h - Math.max(selected.aTop, selected.aBottom)} mm</strong></div>
+            <div className="result"><span>AsX trên yc / bố trí</span><strong>{fmt(result.AsTopXReq, 0)} / {fmt(result.AsTopXProv, 0)} mm²</strong></div>
+            <div className="result"><span>AsY trên yc / bố trí</span><strong>{fmt(result.AsTopYReq, 0)} / {fmt(result.AsTopYProv, 0)} mm²</strong></div>
+            <div className="result"><span>AsX dưới yc / bố trí</span><strong>{fmt(result.AsBotXReq, 0)} / {fmt(result.AsBotXProv, 0)} mm²</strong></div>
+            <div className="result"><span>AsY dưới yc / bố trí</span><strong>{fmt(result.AsBotYReq, 0)} / {fmt(result.AsBotYProv, 0)} mm²</strong></div>
+            <div className={result.flexureX.pass ? 'text-pass' : 'text-fail'}>{result.flexureX.pass ? '✓' : '×'} {result.flexureX.message}</div>
+            <div className={result.flexureY.pass ? 'text-pass' : 'text-fail'}>{result.flexureY.pass ? '✓' : '×'} {result.flexureY.message}</div>
+          </section>
+          <section className="result-section">
+            <div className="section-heading"><h3>Chọc thủng</h3>
+              <span className={`status ${result.punching.pass ? 'pass' : 'fail'}`}>{result.punching.pass ? 'ĐẠT' : 'KĐ'}</span>
+            </div>
+            <div className="result"><span>Nct / Nkt</span><strong>{fmt(result.punching.Nct, 1)} / {fmt(result.punching.Nkt, 1)} kN</strong></div>
+            <div className="result"><span>um / ho</span><strong>{fmt(result.punching.um, 0)} mm / {fmt(result.punching.ho, 0)} mm</strong></div>
+            <div className={result.punching.pass ? 'text-pass' : 'text-fail'}>{result.punching.pass ? '✓' : '×'} {result.punching.message}</div>
+          </section>
+          <section className="result-section">
             <div className="checks">
-              <div className={result.flexureTop.pass ? 'text-pass' : 'text-fail'}>{result.flexureTop.pass ? '✓' : '×'} {result.flexureTop.message}</div>
-              <div className={result.flexureBot.pass ? 'text-pass' : 'text-fail'}>{result.flexureBot.pass ? '✓' : '×'} {result.flexureBot.message}</div>
               <div className={result.shear.pass ? 'text-pass' : 'text-fail'}>{result.shear.pass ? '✓' : '×'} {result.shear.message}</div>
               <div className={result.crack.pass ? 'text-pass' : 'text-fail'}>{result.crack.pass ? '✓' : '×'} {result.crack.message}</div>
               <div className={result.deflection.pass ? 'text-pass' : 'text-fail'}>{result.deflection.pass ? '✓' : '×'} {result.deflection.message}</div>
