@@ -9,6 +9,7 @@ import ReportPanel from './modules/ReportPanel';
 import { openReportPdf, beamReportDoc } from './report/reportPdf';
 import { beamThuyetMinhDoc } from './report/thuyetMinhBeam';
 import { exportBeamExcel } from './report/excelReport';
+import { exportReportWord } from './report/wordReport';
 import { Group, Field, DecimalField, Status, Flexure, Shear, Detailing, CrackPanel, DeflectionPanel } from './components/BeamResults';
 
 type ModuleId = 'beam' | 'column' | 'slab' | 'foundation' | 'report';
@@ -110,17 +111,11 @@ export default function App() {
   const updateBars = (side: 'Top' | 'Bottom', spec: string) => {
     const parsed = parseBars(spec);
     if (side === 'Top') {
-      if (parsed.ok) {
-        patchSelected({ barsTop: spec, AsTop: parsed.As, nBarsTop: parsed.n, barDiaTop: parsed.dia });
-      } else {
-        patchSelected({ barsTop: spec });
-      }
+      if (parsed.ok) patchSelected({ barsTop: spec, AsTop: parsed.As, nBarsTop: parsed.n, barDiaTop: parsed.dia });
+      else patchSelected({ barsTop: spec });
     } else {
-      if (parsed.ok) {
-        patchSelected({ barsBottom: spec, AsBottom: parsed.As, nBarsBottom: parsed.n, barDiaBottom: parsed.dia });
-      } else {
-        patchSelected({ barsBottom: spec });
-      }
+      if (parsed.ok) patchSelected({ barsBottom: spec, AsBottom: parsed.As, nBarsBottom: parsed.n, barDiaBottom: parsed.dia });
+      else patchSelected({ barsBottom: spec });
     }
   };
 
@@ -162,17 +157,18 @@ export default function App() {
     download('tong-hop-dam-btct-v1.csv', '\ufeff' + XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(rows)), 'text/csv;charset=utf-8');
 
   const exportXlsx = () => {
-    exportBeamExcel(results, {
-      projectName: 'Dự án mẫu',
-      designer: 'KS. Thiết kế',
-    });
+    exportBeamExcel(results, { projectName: 'Dự án mẫu', designer: 'KS. Thiết kế' });
   };
 
   const exportThuyetMinhPdf = () => {
-    openReportPdf(beamThuyetMinhDoc(results, {
-      projectName: 'Dự án mẫu',
-      designer: 'KS. Thiết kế',
-    }));
+    openReportPdf(beamThuyetMinhDoc(results, { projectName: 'Dự án mẫu', designer: 'KS. Thiết kế' }));
+  };
+
+  const exportThuyetMinhWord = () => {
+    void exportReportWord(
+      beamThuyetMinhDoc(results, { projectName: 'Dự án mẫu', designer: 'KS. Thiết kế' }),
+      'ThuyetMinh-Dam.docx',
+    );
   };
 
   const importJson = (file: File) => {
@@ -204,15 +200,13 @@ export default function App() {
       <aside>
         <div className="brand">BTCT <span>5574:2018</span></div>
         <p className="muted">DẦM · CỘT · SÀN · MÓNG · BÁO CÁO</p>
-        <button type="button" className={`nav ${module === 'beam' ? 'active' : ''}`} onClick={() => setModule('beam')}>▣&nbsp; Dầm BTCT</button>
-        <button type="button" className={`nav ${module === 'column' ? 'active' : ''}`} onClick={() => setModule('column')}>▣&nbsp; Cột BTCT</button>
-        <button type="button" className={`nav ${module === 'slab' ? 'active' : ''}`} onClick={() => setModule('slab')}>▣&nbsp; Sàn BTCT</button>
-        <button type="button" className={`nav ${module === 'foundation' ? 'active' : ''}`} onClick={() => setModule('foundation')}>▣&nbsp; Móng BTCT</button>
-        <button type="button" className={`nav ${module === 'report' ? 'active' : ''}`} onClick={() => setModule('report')}>▣&nbsp; Báo cáo</button>
+        <button type="button" className={`nav ${module === 'beam' ? 'active' : ''}`} onClick={() => setModule('beam')}>▣ Dầm BTCT</button>
+        <button type="button" className={`nav ${module === 'column' ? 'active' : ''}`} onClick={() => setModule('column')}>▣ Cột BTCT</button>
+        <button type="button" className={`nav ${module === 'slab' ? 'active' : ''}`} onClick={() => setModule('slab')}>▣ Sàn BTCT</button>
+        <button type="button" className={`nav ${module === 'foundation' ? 'active' : ''}`} onClick={() => setModule('foundation')}>▣ Móng BTCT</button>
+        <button type="button" className={`nav ${module === 'report' ? 'active' : ''}`} onClick={() => setModule('report')}>▣ Báo cáo</button>
         <div className="sidefoot">
-          <button type="button" className="theme-toggle" onClick={() => setDark((d) => !d)}>
-            {dark ? '☀ Sáng' : '🌙 Tối'}
-          </button>
+          <button type="button" className="theme-toggle" onClick={() => setDark((d) => !d)}>{dark ? '☀ Sáng' : '🌙 Tối'}</button>
           <div style={{ marginTop: 10 }}>TCVN 5574:2018</div>
         </div>
       </aside>
@@ -236,13 +230,13 @@ export default function App() {
             <button onClick={exportCsv}>CSV</button>
             <button onClick={exportXlsx}>Excel báo cáo</button>
             <button onClick={() => openReportPdf(beamReportDoc(selected, result))}>PDF dầm</button>
-            <button className="primary" onClick={exportThuyetMinhPdf}>Thuyết minh PDF</button>
+            <button onClick={exportThuyetMinhPdf}>TM PDF</button>
+            <button className="primary" onClick={exportThuyetMinhWord}>TM Word</button>
           </div>
         </header>
 
         <section className="notice">
-          L nhịp hỗ trợ 2 chữ số thập phân (vd 4.25). Cốt thép nhập dạng <code>5d18</code> hoặc <code>3d22+2d16</code> → tự tính As (ô As khóa).
-          Moment SLS mặc định ≈ M<sub>ULS</sub>/1.4 nếu để 0. Nút <b>Excel báo cáo</b> / <b>Thuyết minh PDF</b> xuất toàn bộ danh sách dầm theo mẫu.
+          Toolbar thống nhất: Import JSON · JSON · CSV · Excel báo cáo · PDF dầm · TM PDF · TM Word. Cốt thép dạng <code>5d18</code>.
         </section>
 
         <div className="workspace">
@@ -254,10 +248,7 @@ export default function App() {
             {results.map(({ beam, result }) => (
               <button key={beam.id} className={`beam-item ${beam.id === selected.id ? 'selected' : ''}`}
                 onClick={() => setSelectedId(beam.id)}>
-                <span>
-                  <b>{beam.name}</b>
-                  <small>{beam.b}×{beam.h} · L={beam.L ?? '—'}m</small>
-                </span>
+                <span><b>{beam.name}</b><small>{beam.b}×{beam.h} · L={beam.L ?? '—'}m</small></span>
                 <Status pass={result.pass} />
               </button>
             ))}
@@ -268,146 +259,40 @@ export default function App() {
               <h2>Đầu vào: {selected.name}</h2>
               <button className="danger" onClick={remove} disabled={beams.length === 1}>Xóa</button>
             </div>
-            <Group title="Vật liệu & nhận diện">
+            <Group title="Vật liệu">
               <Field label="Tên"><input value={selected.name} onChange={(e) => update('name', e.target.value)} /></Field>
-              <Field label="Bê tông">
-                <select value={selected.concrete} onChange={(e) => update('concrete', e.target.value)}>
-                  {concretes.map((x) => <option key={x.name}>{x.name}</option>)}
-                </select>
-              </Field>
-              <Field label="Thép dọc">
-                <select value={selected.steel} onChange={(e) => update('steel', e.target.value)}>
-                  {steels.map((x) => <option key={x.name}>{x.name}</option>)}
-                </select>
-              </Field>
-              <Field label="Thép đai">
-                <select value={selected.stirrupSteel} onChange={(e) => update('stirrupSteel', e.target.value)}>
-                  {steels.map((x) => <option key={x.name}>{x.name}</option>)}
-                </select>
-              </Field>
+              <Field label="Bê tông"><select value={selected.concrete} onChange={(e) => update('concrete', e.target.value)}>{concretes.map((x) => <option key={x.name}>{x.name}</option>)}</select></Field>
+              <Field label="Thép"><select value={selected.steel} onChange={(e) => update('steel', e.target.value)}>{steels.map((x) => <option key={x.name}>{x.name}</option>)}</select></Field>
             </Group>
             <Group title="Tiết diện & ULS">
-              <DecimalField label="b (mm)" value={selected.b} step="1" onChange={(v) => update('b', v)} />
-              <DecimalField label="h (mm)" value={selected.h} step="1" onChange={(v) => update('h', v)} />
-              <DecimalField label="M− ULS (kNm)" value={selected.MNegative} step="0.01" onChange={(v) => update('MNegative', v)} />
-              <DecimalField label="M+ ULS (kNm)" value={selected.MPositive} step="0.01" onChange={(v) => update('MPositive', v)} />
+              <DecimalField label="b (mm)" value={selected.b} onChange={(v) => update('b', v)} />
+              <DecimalField label="h (mm)" value={selected.h} onChange={(v) => update('h', v)} />
+              <DecimalField label="M− (kNm)" value={selected.MNegative} step="0.01" onChange={(v) => update('MNegative', v)} />
+              <DecimalField label="M+ (kNm)" value={selected.MPositive} step="0.01" onChange={(v) => update('MPositive', v)} />
               <DecimalField label="Q (kN)" value={selected.Q} step="0.01" onChange={(v) => update('Q', v)} />
             </Group>
             <Group title="Cốt thép">
-              <DecimalField label="a trên (mm)" value={selected.aTop} step="1" onChange={(v) => update('aTop', v)} />
-              <Field label="Thép trên (vd 5d18)">
-                <input value={barsTop} placeholder="5d18 hoặc 3d22+2d16" onChange={(e) => updateBars('Top', e.target.value)} />
-              </Field>
-              <Field label="As trên (mm²) — tự tính">
-                <input type="number" step="0.1" value={displayAsTop} readOnly title="As tính từ bố trí thép trên" style={{ background: '#f3f4f6', cursor: 'default' }} />
-              </Field>
-              <DecimalField label="a dưới (mm)" value={selected.aBottom} step="1" onChange={(v) => update('aBottom', v)} />
-              <Field label="Thép dưới (vd 4d20)">
-                <input value={barsBottom} placeholder="4d20 hoặc 3d22+2d16" onChange={(e) => updateBars('Bottom', e.target.value)} />
-              </Field>
-              <Field label="As dưới (mm²) — tự tính">
-                <input type="number" step="0.1" value={displayAsBot} readOnly title="As tính từ bố trí thép dưới" style={{ background: '#f3f4f6', cursor: 'default' }} />
-              </Field>
-              <DecimalField label="Nhánh đai" value={selected.stirrupLegs} step="1" onChange={(v) => update('stirrupLegs', v)} />
-              <DecimalField label="Ø đai (mm)" value={selected.stirrupDia} step="1" onChange={(v) => update('stirrupDia', v)} />
-              <DecimalField label="s đai (mm)" value={selected.stirrupSpacing} step="1" onChange={(v) => update('stirrupSpacing', v)} />
-            </Group>
-            <Group title="SLS · Nứt · Võng">
-              <DecimalField label="L nhịp (m)" value={selected.L ?? 0} step="0.01" onChange={(v) => update('L', v)} />
-              <DecimalField label="Mser− ngắn (kNm)" value={selected.MserShortNeg ?? 0} step="0.01" onChange={(v) => update('MserShortNeg', v)} />
-              <DecimalField label="Mser+ ngắn (kNm)" value={selected.MserShortPos ?? 0} step="0.01" onChange={(v) => update('MserShortPos', v)} />
-              <DecimalField label="Mser− dài (kNm)" value={selected.MserLongNeg ?? 0} step="0.01" onChange={(v) => update('MserLongPos', v)} />
-              <DecimalField label="Mser+ dài (kNm)" value={selected.MserLongPos ?? 0} step="0.01" onChange={(v) => update('MserLongPos', v)} />
-              <Field label="Độ ẩm">
-                <select value={selected.humidity ?? 'mid'} onChange={(e) => update('humidity', e.target.value)}>
-                  <option value="high">{'">75%'}</option>
-                  <option value="mid">40–75%</option>
-                  <option value="low">{'<40%'}</option>
-                </select>
-              </Field>
-              <Field label="Gối tựa">
-                <select value={selected.support ?? 'simple'} onChange={(e) => update('support', e.target.value)}>
-                  <option value="simple">Đơn giản</option>
-                  <option value="continuous">Liên tục</option>
-                  <option value="cantilever">Console</option>
-                </select>
-              </Field>
+              <Field label="Thép trên"><input value={barsTop} placeholder="5d18" onChange={(e) => updateBars('Top', e.target.value)} /></Field>
+              <Field label="As trên"><input type="number" value={displayAsTop} readOnly style={{ background: '#f3f4f6' }} /></Field>
+              <Field label="Thép dưới"><input value={barsBottom} placeholder="4d20" onChange={(e) => updateBars('Bottom', e.target.value)} /></Field>
+              <Field label="As dưới"><input type="number" value={displayAsBot} readOnly style={{ background: '#f3f4f6' }} /></Field>
+              <DecimalField label="s đai" value={selected.stirrupSpacing} onChange={(v) => update('stirrupSpacing', v)} />
+              <DecimalField label="L (m)" value={selected.L ?? 0} step="0.01" onChange={(v) => update('L', v)} />
             </Group>
           </section>
 
           <section className="result-panel card">
-            <div className="card-title">
-              <h2>Kết quả</h2>
-              <Status pass={result.pass} large />
-            </div>
-            <Flexure
-              title="Uốn M−"
-              r={result.negative}
-              b={selected.b}
-              a={selected.aTop}
-              onApplyBars={(spec, As, n, dia) =>
-                patchSelected({ barsTop: spec, AsTop: As, nBarsTop: n, barDiaTop: dia })
-              }
-            />
-            <Flexure
-              title="Uốn M+"
-              r={result.positive}
-              b={selected.b}
-              a={selected.aBottom}
-              onApplyBars={(spec, As, n, dia) =>
-                patchSelected({ barsBottom: spec, AsBottom: As, nBarsBottom: n, barDiaBottom: dia })
-              }
-            />
+            <div className="card-title"><h2>Kết quả</h2><Status pass={result.pass} large /></div>
+            <Flexure title="Uốn M−" r={result.negative} b={selected.b} a={selected.aTop}
+              onApplyBars={(spec, As, n, dia) => patchSelected({ barsTop: spec, AsTop: As, nBarsTop: n, barDiaTop: dia })} />
+            <Flexure title="Uốn M+" r={result.positive} b={selected.b} a={selected.aBottom}
+              onApplyBars={(spec, As, n, dia) => patchSelected({ barsBottom: spec, AsBottom: As, nBarsBottom: n, barDiaBottom: dia })} />
             <Shear r={result} spacing={selected.stirrupSpacing} onApplyS={(s) => update('stirrupSpacing', String(s))} />
             <Detailing d={result.detailing} />
             <CrackPanel c={result.crack} />
             <DeflectionPanel d={result.deflection} hasL={(selected.L ?? 0) > 0} />
-            {result.warnings.length > 0 && (
-              <div className="warnings">
-                <b>Cảnh báo</b>
-                {result.warnings.slice(0, 12).map((w) => <div key={w}>• {w}</div>)}
-              </div>
-            )}
           </section>
         </div>
-
-        <section className="summary card">
-          <div className="card-title">
-            <h2>So sánh nhanh nhiều dầm</h2>
-            <small>As yc / bố trí · Q / Qb+Qsw · s / s gợi ý</small>
-          </div>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Dầm</th><th>b×h</th><th>As− yc/bố trí</th><th>As+ yc/bố trí</th>
-                  <th>Q / Qb+Qsw</th><th>s / s gợi ý</th><th>Uốn</th><th>Cắt</th><th>Tổng</th>
-                </tr>
-              </thead>
-              <tbody>
-                {results.map(({ beam, result: r }) => {
-                  const asNegOk = r.negative.AsProvided >= r.negative.AsRequired;
-                  const asPosOk = r.positive.AsProvided >= r.positive.AsRequired;
-                  const qOk = r.shear.qDemand <= r.shear.qResistance;
-                  return (
-                    <tr key={beam.id} className={beam.id === selected.id ? 'row-selected' : undefined}
-                      onClick={() => setSelectedId(beam.id)} style={{ cursor: 'pointer' }}>
-                      <td><b>{beam.name}</b></td>
-                      <td>{beam.b}×{beam.h}</td>
-                      <td className={asNegOk ? 'text-pass' : 'text-fail'}>{fmt(r.negative.AsRequired, 0)} / {fmt(r.negative.AsProvided, 0)}</td>
-                      <td className={asPosOk ? 'text-pass' : 'text-fail'}>{fmt(r.positive.AsRequired, 0)} / {fmt(r.positive.AsProvided, 0)}</td>
-                      <td className={qOk ? 'text-pass' : 'text-fail'}>{fmt(r.shear.qDemand, 1)} / {fmt(r.shear.qResistance, 1)}</td>
-                      <td>{fmt(beam.stirrupSpacing, 0)} / {fmt(r.shear.sSuggested ?? r.shear.sRequired ?? 0, 0)}</td>
-                      <td><Status pass={r.negative.check.pass && r.positive.check.pass} /></td>
-                      <td><Status pass={r.shear.check.pass} /></td>
-                      <td><Status pass={r.pass} /></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </section>
         </>
         )}
       </main>
