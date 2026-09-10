@@ -2,7 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { calcSlab, createDefaultSlab, parseSlabBars, type SlabInput } from '../engine/slab';
 import { concretes, steels } from '../engine/materials';
 import { openReportPdf, slabReportDoc } from '../report/reportPdf';
+import { slabThuyetMinhDoc } from '../report/thuyetMinhMulti';
+import * as XLSX from 'xlsx';
 import { exportGenericExcel } from '../report/excelReport';
+import { exportReportWord } from '../report/wordReport';
 
 const STORAGE = 'ketcau-btct-5574-slabs-v1';
 const fmt = (v: number, d = 1) =>
@@ -107,6 +110,16 @@ export default function SlabPanel() {
     ]);
   };
 
+  const exportCsv = () => {
+    const summary = results.map(({ slab, result: r }) => ({
+      Sàn: slab.name, h: slab.h, Lx: slab.Lx, Ly: slab.Ly,
+      'Kết luận': r.pass ? 'ĐẠT' : 'KHÔNG ĐẠT',
+    }));
+    download('tong-hop-san-btct.csv', '\ufeff' + XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(summary)), 'text/csv;charset=utf-8');
+  };
+  const exportTmPdf = () => openReportPdf(slabThuyetMinhDoc(results, { projectName: 'Dự án mẫu', designer: 'KS. Thiết kế' }));
+  const exportTmWord = () => void exportReportWord(slabThuyetMinhDoc(results, { projectName: 'Dự án mẫu', designer: 'KS. Thiết kế' }), 'ThuyetMinh-San.docx');
+
   return (
     <>
       <header>
@@ -119,13 +132,16 @@ export default function SlabPanel() {
             onChange={(e) => { const f = e.target.files?.[0]; if (f) importJson(f); e.target.value = ''; }} />
           <button type="button" onClick={() => fileRef.current?.click()}>Import JSON</button>
           <button type="button" onClick={exportJson}>JSON</button>
-          <button type="button" onClick={exportExcel}>Excel</button>
-          <button type="button" className="primary" onClick={() => openReportPdf(slabReportDoc(selected, result))}>Xuất PDF</button>
+          <button type="button" onClick={exportCsv}>CSV</button>
+          <button type="button" onClick={exportExcel}>Excel báo cáo</button>
+          <button type="button" onClick={() => openReportPdf(slabReportDoc(selected, result))}>PDF sàn</button>
+          <button type="button" onClick={exportTmPdf}>TM PDF</button>
+          <button type="button" className="primary" onClick={exportTmWord}>TM Word</button>
         </div>
       </header>
 
       <section className="notice">
-        <b>Sàn:</b> Dải 1 m · <b>a bảo vệ</b> → ho = h − a (uốn / cắt / chọc thủng). Thép 2 phương X/Y · Excel / PDF.
+        <b>Sàn:</b> Dải 1 m · <b>a bảo vệ</b> → ho = h − a (uốn / cắt / chọc thủng). Toolbar: Import JSON · JSON · CSV · Excel · PDF · TM PDF · TM Word.
       </section>
 
       <div className="workspace">
@@ -218,7 +234,6 @@ export default function SlabPanel() {
                 <div className="suggest-title">Thép chống chọc thủng (gợi ý)</div>
                 <div className="result"><span>Asw yc</span><strong>{fmt(result.punching.AswReq, 0)} mm² trên chu vi</strong></div>
                 <div className="result"><span>Bố trí gợi ý</span><strong>{result.punching.rebarSuggest || '—'}</strong></div>
-                <small className="text-fail">Nct &gt; Nkt — cần thép đứng/đai quanh cột (ước lượng sơ bộ)</small>
               </div>
             )}
           </section>
