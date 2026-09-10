@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { calcColumn, createDefaultColumn, parseColumnBars, type ColumnInput } from '../engine/column';
 import { concretes, steels } from '../engine/materials';
 import { openReportPdf, columnReportDoc } from '../report/reportPdf';
+import { columnThuyetMinhDoc } from '../report/thuyetMinhMulti';
+import * as XLSX from 'xlsx';
 import { exportGenericExcel } from '../report/excelReport';
 import { exportReportWord } from '../report/wordReport';
 
@@ -118,6 +120,21 @@ export default function ColumnPanel() {
     ]);
   };
 
+  const exportCsv = () => {
+    const summary = results.map(({ col, result: r }) => ({
+      Cột: col.name,
+      'b×h': `${col.b}×${col.h}`,
+      N: col.N,
+      Mx: col.Mx,
+      My: col.My,
+      'Kết luận': r.pass ? 'ĐẠT' : 'KHÔNG ĐẠT',
+    }));
+    const csv = '\ufeff' + XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(summary));
+    download('tong-hop-cot-btct.csv', csv, 'text/csv;charset=utf-8');
+  };
+  const exportTmPdf = () => openReportPdf(columnThuyetMinhDoc(results, { projectName: 'Dự án mẫu', designer: 'KS. Thiết kế' }));
+  const exportTmWord = () => void exportReportWord(columnThuyetMinhDoc(results, { projectName: 'Dự án mẫu', designer: 'KS. Thiết kế' }), 'ThuyetMinh-Cot.docx');
+
   return (
     <>
       <header>
@@ -139,18 +156,16 @@ export default function ColumnPanel() {
           />
           <button type="button" onClick={() => fileRef.current?.click()}>Import JSON</button>
           <button type="button" onClick={exportJson}>JSON</button>
-          <button type="button" onClick={exportExcel}>Excel</button>
-          <button type="button" className="primary" onClick={() => openReportPdf(columnReportDoc(selected, result))}>
-            Xuất PDF
-          </button>
-          <button type="button" onClick={() => void exportReportWord(columnReportDoc(selected, result), `Cot-${selected.name || 'BTCT'}.docx`)}>
-            Word
-          </button>
+          <button type="button" onClick={exportCsv}>CSV</button>
+          <button type="button" onClick={exportExcel}>Excel báo cáo</button>
+          <button type="button" onClick={() => openReportPdf(columnReportDoc(selected, result))}>PDF cột</button>
+          <button type="button" onClick={exportTmPdf}>TM PDF</button>
+          <button type="button" className="primary" onClick={exportTmWord}>TM Word</button>
         </div>
       </header>
 
       <section className="notice">
-        <b>Cột:</b> N–M gần đúng. Thép <code>8d20</code> → As khóa. Danh sách + Excel / PDF / Word.
+        <b>Cột:</b> N–M gần đúng. Thép <code>8d20</code> → As khóa. Toolbar: Import JSON · JSON · CSV · Excel · PDF · TM PDF · TM Word.
       </section>
 
       <div className="workspace">
@@ -255,7 +270,6 @@ export default function ColumnPanel() {
   );
 }
 
-/** Sơ đồ N–M gần đúng: đường bao elip N/N0 + M/M0 = 1, điểm thiết kế */
 function NMDiagram({
   N, Mx, My, N0, Mx0, My0, interaction,
 }: {
@@ -290,7 +304,7 @@ function NMDiagram({
           {interaction.toFixed(2)}
         </text>
       </svg>
-      <div className="diagram-caption">Đường bao gần đúng N/N₀–M/M₀ · điểm = tổ hợp thiết kế (không thay VBA)</div>
+      <div className="diagram-caption">Đường bao gần đúng N/N₀–M/M₀ · điểm = tổ hợp thiết kế</div>
     </div>
   );
 }
