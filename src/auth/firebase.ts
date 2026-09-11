@@ -1,6 +1,7 @@
 /**
  * Firebase config — project tinhketcau-btct-5574 (console.firebase.google.com).
  * Bật Authentication → Sign-in method → Email/Password trong Firebase Console.
+ * Authorized domains: tinhketcau-btct-5574.vercel.app
  */
 import { initializeApp, type FirebaseApp } from 'firebase/app';
 import {
@@ -14,13 +15,13 @@ import {
 } from 'firebase/auth';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyBiarXXhmcw9zkMIpHkSL7M_qfJNxy8',
+  apiKey: 'AIzaSyBiarXXhmcw9zkICxMIpHkSl7M_qfJNxy8',
   authDomain: 'tinhketcau-btct-5574.firebaseapp.com',
   projectId: 'tinhketcau-btct-5574',
   storageBucket: 'tinhketcau-btct-5574.firebasestorage.app',
   messagingSenderId: '736134775994',
-  appId: '1:736134775994:web:60928843a51bc1c2b6ee83',
-  measurementId: 'G-3N869YBY8E',
+  appId: '1:736134775994:web:b57d0055843bea00b6ee83',
+  measurementId: 'G-CCVKERQCNN',
 };
 
 let app: FirebaseApp | null = null;
