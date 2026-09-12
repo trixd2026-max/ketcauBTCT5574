@@ -250,26 +250,13 @@ export default function AuthGate({ children }: { children: ReactNode }) {
             <button type="submit" className="primary">
               Mở khóa
             </button>
-            <button
-              type="button"
-              className="linkish"
-              onClick={() => {
-                if (confirm('Xóa PIN cũ và đặt lại?')) {
-                  localStorage.removeItem(PIN_HASH_KEY);
-                  setNeedSetup(true);
-                  setMode('setup');
-                }
-              }}
-            >
-              Quên PIN — đặt lại
-            </button>
           </form>
         )}
 
         {mode === 'firebase' && (
           <form className="auth-form" onSubmit={onFirebaseLogin}>
             <p className="auth-hint">
-              Dùng Firebase project <code>tinhketcau-btct-5574</code>. Cần bật Email/Password trong Console.
+              Dùng Firebase project <code>tinhketcau-btct-5574-24f5e</code>. Cần bật Email/Password trong Console.
             </p>
             <label>
               Email
